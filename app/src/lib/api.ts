@@ -10,7 +10,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import type { MenuId } from './menu-ids';
 import { mockBackend } from './mock';
-import type { DocMeta, Folder, Import, NewDoc, Opened, Prefs, Query, Saved, VersionMeta } from './types';
+import type { DocMeta, Folder, Import, NewDoc, Opened, Palette, Prefs, Query, Saved, VersionMeta } from './types';
 
 export type Unlisten = () => void;
 
@@ -56,6 +56,11 @@ export interface Backend {
   restoreVersion(version: number, thumbnail: Uint8Array | null): Promise<Saved>;
   putDraft(id: number, baseVersionId: number, content: string): Promise<void>;
   discardDraft(id: number): Promise<void>;
+
+  listPalettes(): Promise<Palette[]>;
+  /** Saves a palette: its colours after transparent. */
+  savePalette(name: string, colours: string[]): Promise<Palette>;
+  deletePalette(id: number): Promise<void>;
 
   /** Opens the system's file picker for documents to import. Null if cancelled. */
   pickImports(): Promise<string[] | null>;
@@ -107,6 +112,10 @@ function tauri(): Backend {
     restoreVersion: (version, thumbnail) => invoke('restore_version', { version, thumbnail: bytes(thumbnail) }),
     putDraft: (id, baseVersionId, content) => invoke('put_draft', { id, baseVersionId, content }),
     discardDraft: (id) => invoke('discard_draft', { id }),
+
+    listPalettes: () => invoke('list_palettes'),
+    savePalette: (name, colours) => invoke('save_palette', { name, colours }),
+    deletePalette: (id) => invoke('delete_palette', { id }),
 
     pickImports: async () => {
       const picked = await open({

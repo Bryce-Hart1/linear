@@ -7,6 +7,7 @@ use std::path::Path;
 
 use linear_store::docs::{self, DocMeta, NewDoc, Opened, Query, Saved, VersionMeta};
 use linear_store::folders::{self, Folder};
+use linear_store::palettes::{self, Palette};
 use linear_store::{Kind, Prefs, Store};
 use serde::Serialize;
 use tauri::State;
@@ -168,6 +169,24 @@ pub async fn put_draft(store: State<'_, Store>, id: i32, base_version_id: i32, c
 #[tauri::command]
 pub async fn discard_draft(store: State<'_, Store>, id: i32) -> CmdResult<()> {
     on_store(&store, move |c| docs::discard_draft(c, id)).await
+}
+
+// ── Palettes ─────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn list_palettes(store: State<'_, Store>) -> CmdResult<Vec<Palette>> {
+    on_store(&store, palettes::list).await
+}
+
+/// Saves a palette: its colours after transparent.
+#[tauri::command]
+pub async fn save_palette(store: State<'_, Store>, name: String, colours: Vec<String>) -> CmdResult<Palette> {
+    on_store(&store, move |c| palettes::save(c, &name, &colours)).await
+}
+
+#[tauri::command]
+pub async fn delete_palette(store: State<'_, Store>, id: i32) -> CmdResult<()> {
+    on_store(&store, move |c| palettes::delete(c, id)).await
 }
 
 // ── Files ────────────────────────────────────────────────────────────────

@@ -65,6 +65,9 @@ pub fn run() {
             commands::restore_version,
             commands::put_draft,
             commands::discard_draft,
+            commands::list_palettes,
+            commands::save_palette,
+            commands::delete_palette,
             commands::read_import,
             commands::write_export,
         ])

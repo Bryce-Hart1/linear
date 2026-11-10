@@ -5,7 +5,7 @@
 
 import { api } from './api';
 import { folderPath } from './folder-tree';
-import { kindInfo } from './kinds';
+import { kindInfo, type NewOptions } from './kinds';
 import { notes } from './notes.svelte';
 import { prefs } from './prefs.svelte';
 import { errorMessage, type DocMeta, type Folder, type Kind, type View } from './types';
@@ -98,13 +98,13 @@ class Library {
 
   // ── Documents ──────────────────────────────────────────────────────────
 
-  async create(kind: Kind, name: string): Promise<DocMeta | undefined> {
+  async create(kind: Kind, name: string, opts?: NewOptions): Promise<DocMeta | undefined> {
     const info = kindInfo(kind);
     if (!info.blank) {
       notes.say(`${info.plural} arrive in ${info.comingIn}.`);
       return undefined;
     }
-    const content = info.blank();
+    const content = info.blank(opts);
     const thumb = await info.thumbnail(content);
     return this.act(() => api.createDocument({ name, kind, folder: this.newFolder, content, thumbnail: thumb && Array.from(thumb) }));
   }

@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 pub mod docs;
 mod error;
 pub mod folders;
+pub mod palettes;
 pub mod prefs;
 pub mod schema;
 

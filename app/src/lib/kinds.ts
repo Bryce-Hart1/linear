@@ -6,12 +6,23 @@
 import { Grid3x3, PenLine, Workflow } from '@lucide/svelte';
 import type { Component } from 'svelte';
 import { thumbnail as linThumbnail } from './lin/draw';
+import { parseLpx, serializeLpx } from './lpx/format';
+import { blankPix, presetById } from './lpx/model';
+import { thumbnailLpx } from './lpx/render';
 import { parseLin, serializeLin } from './lin/format';
 import { blankDoc } from './lin/model';
 import type { Kind } from './types';
 
 /** How big a library thumbnail is drawn, at most, on its longer side. */
 export const THUMB_SIDE = 480;
+
+/** What the New dialog asks for, for kinds that have a size. */
+export interface NewOptions {
+  w?: number;
+  h?: number;
+  /** A palette's colours after transparent. */
+  colours?: readonly string[];
+}
 
 export interface KindInfo {
   kind: Kind;
@@ -24,7 +35,7 @@ export interface KindInfo {
   blurb: string;
   icon: Component;
   /** What a new one starts as, serialised; null until linear can make this kind. */
-  blank: (() => string) | null;
+  blank: ((opts?: NewOptions) => string) | null;
   /** Throws, saying what's wrong, if `text` isn't a readable file of this kind; null until linear can read it. */
   check: ((text: string) => void) | null;
   /** A small picture of `text` for the library (JPEG or PNG), or null for an empty page or a kind without one yet. */
@@ -59,10 +70,15 @@ export const KINDS: readonly KindInfo[] = [
     plural: 'Pixel art',
     blurb: 'Layers and a palette, one pixel at a time',
     icon: Grid3x3,
-    blank: null,
-    check: null,
-    thumbnail: async () => null,
-    comingIn: 'M4',
+    blank: (o) => serializeLpx(blankPix(o?.w ?? 32, o?.h ?? 32, o?.colours ?? presetById('linear16')!.colours)),
+    check: (text) => void parseLpx(text),
+    thumbnail: async (text) => {
+      try {
+        return await thumbnailLpx(parseLpx(text), THUMB_SIDE);
+      } catch {
+        return null;
+      }
+    },
   },
   {
     kind: 'ldw',

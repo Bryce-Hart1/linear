@@ -9,7 +9,7 @@ An editor for three kinds of document:
 It is a Tauri app. The UI is Svelte, and the library (documents with their version history,
 drafts, folders, palettes and preferences) is kept in SQLite through Diesel.
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M3 (the clickable `.lin` editor).** Done so far:
+The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M4 (pixel art).** Done so far:
 
 - the window, the native menu, light and dark themes, and preferences kept in the library;
 - documents with version history, drafts, pinning and a Trash;
@@ -26,11 +26,19 @@ The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M3 (the clickable `.lin` 
   - resize handles, and connector dots to draw lines out of shapes;
   - double-click to type, and right-click menus;
   - a shortcut sheet on ⌘/.
+- the pixel-art editor (`.lpx`):
+  - pencil, eraser, fill, line, rectangle, ellipse, eyedropper, select and move;
+  - brush sizes, mirroring and pixel-perfect lines;
+  - an indexed palette, with built-in and saved palettes;
+  - layers with visibility, lock and opacity;
+  - canvas size, flip and turn;
+  - PNG export at 1–32×.
 
 The `.lin` code in `app/src/lib/lin` is drawBridge's, unchanged except for the colour its canvas reads
 for the accent. `fixtures/flow.lin` is the golden file it must round-trip byte for byte.
 `app/src/lib/lin-ui` is linear's own: set-to-value edits, handles and dots, and the shortcut lists. Everything it
-makes is plain `.lin` v1. Next is pixel art (M4), then drawings (M5).
+makes is plain `.lin` v1. `app/src/lib/lpx` is the pixel-art format (layers of palette indices, deflated) and
+everything that draws on it. Next is drawings (M5).
 
 ## Layout
 

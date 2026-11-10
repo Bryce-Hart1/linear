@@ -8,7 +8,9 @@ import { menuIdFor } from './menu-ids';
 import { thumbnail as linThumbnail } from './lin/draw';
 import { parseLin } from './lin/format';
 import { MockLibrary, importFromFile } from './mock-library';
-import type { Import, Prefs } from './types';
+import { thumbnailLpx } from './lpx/render';
+import { parseLpx } from './lpx/format';
+import type { Import, Palette, Prefs } from './types';
 
 /** The same defaults as linear-store's `Prefs::default()`. */
 export const DEFAULT_PREFS: Prefs = {
@@ -103,6 +105,8 @@ function call<T>(f: () => T): Promise<T> {
 export function mockBackend(seed = true): Backend {
   let prefs = clone(DEFAULT_PREFS);
   const lib = new MockLibrary(seed);
+  let palettes: Palette[] = [];
+  let paletteId = 1;
   // Thumbnails as blob: URLs, by document id. The samples' are drawn once, before the first listing.
   const thumbs = new Map<number, string>();
   const keepThumb = (id: number, bytes: Uint8Array | number[] | null | undefined) => {
@@ -117,8 +121,13 @@ export function mockBackend(seed = true): Backend {
       : Promise.all(
           lib
             .everything()
-            .filter((d) => d.meta.kind === 'lin')
-            .map(async (d) => keepThumb(d.meta.id, await linThumbnail(parseLin(d.content), 480).catch(() => null))),
+            .filter((d) => d.meta.kind !== 'ldw')
+            .map(async (d) =>
+              keepThumb(
+                d.meta.id,
+                await (d.meta.kind === 'lin' ? linThumbnail(parseLin(d.content), 480) : thumbnailLpx(parseLpx(d.content), 480)).catch(() => null),
+              ),
+            ),
         );
   // Files picked in the browser, by the fake path pickImports hands out.
   const picked = new Map<string, File>();
@@ -184,6 +193,17 @@ export function mockBackend(seed = true): Backend {
     restoreVersion: (v) => call(() => lib.restoreVersion(v)),
     putDraft: (id, base, content) => call(() => lib.putDraft(id, base, content)),
     discardDraft: (id) => call(() => lib.discardDraft(id)),
+
+    listPalettes: async () => structuredClone(palettes),
+    savePalette: async (name, colours) => {
+      if (!name.trim()) throw { code: 'invalid', message: 'a palette needs a name' };
+      const p: Palette = { id: paletteId++, name: name.trim(), colours: [...colours], createdAt: Date.now() };
+      palettes = [...palettes, p].sort((a, b) => a.name.localeCompare(b.name));
+      return structuredClone(p);
+    },
+    deletePalette: async (id) => {
+      palettes = palettes.filter((p) => p.id !== id);
+    },
 
     pickImports: () =>
       new Promise((resolve) => {

@@ -9,6 +9,7 @@
   import { onMount } from 'svelte';
   import KeyTest from './components/dev/KeyTest.svelte';
   import LinEditor from './components/editors/LinEditor.svelte';
+  import PixelEditor from './components/editors/PixelEditor.svelte';
   import DocView from './components/shell/DocView.svelte';
   import Library from './components/shell/Library.svelte';
   import NewDialog from './components/shell/NewDialog.svelte';
@@ -19,7 +20,7 @@
   import { api } from './lib/api';
   import { dragging } from './lib/drag';
   import { folderPath } from './lib/folder-tree';
-  import { kindInfo } from './lib/kinds';
+  import { kindInfo, type NewOptions } from './lib/kinds';
   import { library } from './lib/library.svelte';
   import type { MenuId } from './lib/menu-ids';
   import { onMenu, route } from './lib/menu-router';
@@ -69,9 +70,9 @@
     making = kind;
   }
 
-  async function create(kind: Kind, name: string) {
+  async function create(kind: Kind, name: string, opts?: NewOptions) {
     making = null;
-    const doc = await library.create(kind, name);
+    const doc = await library.create(kind, name, opts);
     if (doc) open(doc, true);
   }
 
@@ -177,6 +178,8 @@
         {#key opened.meta.id}
           {#if opened.meta.kind === 'lin'}
             <LinEditor {opened} {fresh} onclose={close} />
+          {:else if opened.meta.kind === 'lpx'}
+            <PixelEditor {opened} {fresh} onclose={close} />
           {:else}
             <DocView {opened} onclose={close} />
           {/if}
@@ -224,7 +227,7 @@
     {kind}
     where={library.newFolder === null ? 'the top level' : folderPath(library.folders, library.newFolder)}
     onclose={() => (making = null)}
-    oncreate={(name) => create(kind, name)}
+    oncreate={(name, opts) => create(kind, name, opts)}
   />
 {/if}
 {#if settingsOpen}

@@ -79,6 +79,14 @@ export interface NewDoc {
   thumbnail?: number[] | null;
 }
 
+/** A pixel-art palette the user saved: its colours after transparent. */
+export interface Palette {
+  id: number;
+  name: string;
+  colours: string[];
+  createdAt: number;
+}
+
 /** A file read for importing, not yet checked. */
 export interface Import {
   name: string;
