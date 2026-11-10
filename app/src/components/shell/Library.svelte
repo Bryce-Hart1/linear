@@ -380,18 +380,18 @@
     aspect-ratio: 4 / 3;
     margin-bottom: 6px;
     overflow: hidden;
-    border: 1px solid var(--faint);
+    border: 1px solid var(--line);
     border-radius: 10px;
-    background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+    background: transparent;
     color: var(--dim);
-    transition: box-shadow 120ms;
   }
   .card:hover .thumb {
-    box-shadow: var(--shadow);
+    color: var(--ink);
   }
   .card[aria-selected='true'] .thumb {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 3.5px var(--line);
   }
   .thumb img {
     width: 100%;
@@ -424,7 +424,8 @@
     white-space: nowrap;
   }
   .card[aria-selected='true'] .name span {
-    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .meta {
     display: flex;
@@ -467,10 +468,11 @@
     border-radius: 7px;
     outline: none;
   }
-  .line:nth-child(odd) {
-    background: color-mix(in srgb, var(--ink) 2.5%, transparent);
+  .line {
+    border: 1px solid transparent;
   }
   .line[aria-selected='true'] {
+    border-color: var(--line);
     background: var(--accent);
     color: var(--accent-ink);
   }
@@ -535,20 +537,14 @@
     align-items: flex-start;
     gap: 4px;
     padding: 18px;
-    border: 1px solid var(--faint);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: var(--surface);
+    background: transparent;
     text-align: left;
     cursor: pointer;
-    transition:
-      border-color 120ms,
-      box-shadow 120ms,
-      transform 120ms;
   }
   .kind:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--faint), var(--ink) 20%);
-    box-shadow: var(--shadow);
-    transform: translateY(-1px);
+    box-shadow: inset 0 0 0 1px var(--line);
   }
   .kind:disabled {
     cursor: default;
@@ -560,8 +556,8 @@
     width: 46px;
     height: 46px;
     margin-bottom: 10px;
+    border: 1px solid var(--line);
     border-radius: 12px;
-    background: color-mix(in srgb, currentColor 13%, transparent);
   }
   .kind .label {
     font-size: 15px;

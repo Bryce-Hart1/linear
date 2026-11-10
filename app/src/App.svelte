@@ -13,6 +13,8 @@
   import Library from './components/shell/Library.svelte';
   import NewDialog from './components/shell/NewDialog.svelte';
   import Settings from './components/shell/Settings.svelte';
+  import ShortcutSheet from './components/shell/ShortcutSheet.svelte';
+  import { LIBRARY_SHORTCUTS } from './lib/lin-ui/shortcuts';
   import Sidebar from './components/shell/Sidebar.svelte';
   import { api } from './lib/api';
   import { dragging } from './lib/drag';
@@ -30,6 +32,7 @@
 
   let settingsOpen = $state(false);
   let keyTestOpen = $state(false);
+  let sheetOpen = $state(false);
   let making = $state<Kind | null>(null);
   let opened = $state<Opened | null>(null);
   /** The open document was just made, so it opens ready to edit. */
@@ -128,8 +131,7 @@
         if (!opened && selected && !selected.trashedAt) library.trash(selected);
         return true;
       case 'help.shortcuts':
-        if (DEV) keyTestOpen = true;
-        else notes.say('The shortcut sheet comes with the editors.');
+        sheetOpen = true;
         return true;
     }
     return false;
@@ -228,6 +230,9 @@
 {#if settingsOpen}
   <Settings onclose={() => (settingsOpen = false)} />
 {/if}
+{#if sheetOpen}
+  <ShortcutSheet title="Shortcuts" groups={LIBRARY_SHORTCUTS} onclose={() => (sheetOpen = false)} />
+{/if}
 {#if keyTestOpen}
   <KeyTest onclose={() => (keyTestOpen = false)} />
 {/if}
@@ -313,10 +318,10 @@
     transform: translateX(-50%);
     max-width: min(620px, calc(100vw - 32px));
     padding: 9px 14px;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
-    background: var(--ink);
-    color: var(--bg);
-    box-shadow: var(--shadow);
+    background: var(--bg);
+    color: var(--ink);
   }
   .note button {
     flex: none;
@@ -324,12 +329,14 @@
     border: 0;
     border-radius: 5px;
     background: transparent;
-    color: color-mix(in srgb, var(--accent), var(--bg) 35%);
+    color: var(--ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
     font-weight: 600;
     cursor: pointer;
   }
   .note button:hover {
-    background: color-mix(in srgb, var(--bg) 14%, transparent);
+    text-decoration-thickness: 2px;
   }
   .drop {
     position: fixed;
@@ -346,10 +353,10 @@
     align-items: center;
     gap: 6px;
     padding: 28px 40px;
-    border: 2px dashed var(--accent);
+    border: 2px dashed var(--line);
     border-radius: 16px;
-    background: var(--surface);
-    color: var(--accent);
+    background: var(--bg);
+    color: var(--ink);
   }
   .drop-card span {
     color: var(--dim);

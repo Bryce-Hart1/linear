@@ -1,4 +1,7 @@
-/* Page basics and the few controls every screen shares. */
+/* Page basics and the few controls every screen shares: outlined, never
+   filled grey. A control is a --line outline; hovering brightens its text,
+   the chosen one gets a solid outline, and the primary action is the one
+   purple fill. */
 
 * {
   box-sizing: border-box;
@@ -38,8 +41,8 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .btn {
@@ -49,25 +52,32 @@ button {
   gap: 6px;
   height: 30px;
   padding: 0 12px;
-  border: 1px solid var(--faint);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: transparent;
+  color: var(--ink);
   cursor: pointer;
 }
-.btn:hover {
-  background: color-mix(in srgb, var(--surface), var(--ink) 4%);
-}
-.btn:active {
-  background: color-mix(in srgb, var(--surface), var(--ink) 8%);
+.btn:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--line);
 }
 .btn.primary {
-  border-color: transparent;
+  border-color: var(--line);
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
 }
-.btn.primary:hover {
-  background: color-mix(in srgb, var(--accent), var(--ink) 10%);
+.btn.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+.btn.danger:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .icon-btn {
@@ -76,57 +86,47 @@ button {
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--dim);
   cursor: pointer;
 }
-.icon-btn:hover {
-  background: var(--hover);
+.icon-btn:hover:not(:disabled) {
   color: var(--ink);
 }
 .icon-btn[aria-pressed='true'] {
-  background: var(--press);
+  border-color: var(--line);
   color: var(--ink);
 }
 .icon-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
-  background: transparent;
 }
 
-/* A row of mutually exclusive choices. */
+/* A row of mutually exclusive choices: the chosen one is outlined. */
 .seg {
   display: inline-flex;
+  gap: 2px;
   padding: 2px;
+  border: 1px solid var(--faint);
   border-radius: var(--radius);
-  background: var(--press);
 }
 .seg button {
   height: 26px;
   padding: 0 12px;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--dim);
   cursor: pointer;
 }
-.seg button[aria-pressed='true'] {
-  background: var(--surface);
+.seg button:hover:not(:disabled) {
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
-
-.btn.danger {
-  border-color: transparent;
-  background: var(--danger);
-  color: #fff;
-  font-weight: 600;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
+.seg button[aria-pressed='true'] {
+  border-color: var(--line);
+  color: var(--ink);
 }
 
 /* A one-line text field. */
@@ -136,10 +136,9 @@ button {
   padding: 0 10px;
   border: 1px solid var(--faint);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: transparent;
   outline: none;
 }
 .input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--line);
 }

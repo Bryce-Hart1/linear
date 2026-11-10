@@ -34,14 +34,13 @@
 <style>
   dialog {
     padding: 0;
-    border: 1px solid var(--faint);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: var(--surface);
+    background: var(--bg);
     color: var(--ink);
-    box-shadow: var(--shadow);
   }
   dialog::backdrop {
-    background: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.72);
   }
   header {
     display: flex;

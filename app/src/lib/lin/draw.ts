@@ -66,7 +66,7 @@ export function themeFromCss(): Theme {
     ink: get('--ink', LIGHT.ink),
     dim: get('--dim', LIGHT.dim),
     faint: get('--faint', LIGHT.faint),
-    accent: get('--accent', LIGHT.accent),
+    accent: get('--canvas-accent', LIGHT.accent),
   };
 }
 

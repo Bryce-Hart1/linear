@@ -266,10 +266,9 @@
     left: 0;
     width: 280px;
     padding: 6px;
-    border: 1px solid var(--faint);
+    border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: var(--surface);
-    box-shadow: var(--shadow);
+    background: var(--bg);
   }
   .menu-item {
     display: flex;
@@ -285,7 +284,7 @@
   }
   .menu-item:hover:not(:disabled),
   .menu-item:focus-visible {
-    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--line);
     outline: none;
   }
   .menu-item:disabled {
@@ -298,8 +297,8 @@
     width: 32px;
     height: 32px;
     flex: none;
+    border: 1px solid var(--line);
     border-radius: var(--radius);
-    background: color-mix(in srgb, currentColor 13%, transparent);
   }
   .text {
     display: flex;
@@ -326,9 +325,12 @@
     height: 30px;
     margin-bottom: 12px;
     padding: 0 8px;
+    border: 1px solid var(--faint);
     border-radius: var(--radius);
-    background: var(--press);
     color: var(--dim);
+  }
+  .search:focus-within {
+    border-color: var(--line);
   }
   .search input {
     flex: 1;
@@ -355,7 +357,7 @@
     height: 30px;
     flex: none;
     padding: 0 8px;
-    border: 0;
+    border: 1px solid transparent;
     border-radius: var(--radius);
     background: transparent;
     color: var(--dim);
@@ -368,25 +370,24 @@
     white-space: nowrap;
   }
   .row:hover {
-    background: var(--hover);
     color: var(--ink);
   }
   .row[aria-current='page'] {
-    background: var(--press);
+    border-color: var(--line);
     color: var(--ink);
     font-weight: 500;
   }
   .row.drop {
-    background: var(--accent-soft);
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1.5px var(--accent);
+    border-color: var(--line);
+    background: var(--accent);
+    color: var(--accent-ink);
   }
   .row.editing {
     cursor: default;
     color: var(--ink);
   }
   .row.editing:hover {
-    background: transparent;
+    color: var(--ink);
   }
   .section {
     display: flex;

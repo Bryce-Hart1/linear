@@ -108,7 +108,7 @@
     height: 52px;
     margin-bottom: 14px;
     border-radius: 14px;
-    background: color-mix(in srgb, currentColor 13%, transparent);
+    border: 1px solid var(--line);
   }
   h2 {
     margin: 0 0 6px;

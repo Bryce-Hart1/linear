@@ -68,10 +68,9 @@
     z-index: 100;
     min-width: 200px;
     padding: 5px;
-    border: 1px solid var(--faint);
+    border: 1px solid var(--line);
     border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--shadow);
+    background: var(--bg);
   }
   button {
     display: flex;

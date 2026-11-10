@@ -2,30 +2,36 @@
    dark (unless the user chose light), or when the user chose dark. Every
    component reads these variables and nothing else.
 
-   The look is monochrome: neutral greys, black and white. The one colour is
-   a dark purple (#4527A0), kept for what you're acting on: the primary
-   button, the selection, focus rings and drop targets. On a dark page it is
-   lifted a little (#6a4bc4) so rings and selected text stay visible.
+   The look is outlines on a flat page: pure black with white lines (or, in
+   light mode, pure white with black lines), and no grey fills. Things you can
+   act on are drawn with --line; the selected one gets a heavier --line
+   outline. The one colour is a dark purple, #2A0047, used only as a fill
+   behind white text: the primary button, the active tool, a highlighted menu
+   item. Secondary text is --dim, and dividers are --faint.
 
-   --paper, --ink, --dim, --faint and --accent are also the drawing theme the
-   editors' canvases read (the names drawBridge's .lin code expects). The ten
-   .lin colours are part of the file format and don't change with the theme. */
+   --paper, --ink, --dim and --faint are also the drawing theme the editors'
+   canvases read; --canvas-accent is the canvas's selection colour, white on
+   black since the purple wouldn't show there. The ten .lin colours are part
+   of the file format and don't change with the theme. */
 
 :root {
-  --bg: #f7f7f7;
-  --sidebar: #efefef;
+  --bg: #ffffff;
+  --sidebar: #ffffff;
   --surface: #ffffff;
-  --ink: #161616;
-  --dim: #6e6e6e;
-  --faint: #dddddd;
-  --hover: rgba(0, 0, 0, 0.05);
-  --press: rgba(0, 0, 0, 0.09);
-  --accent: #4527a0;
+  --ink: #000000;
+  --dim: #6b6b6b;
+  --faint: rgba(0, 0, 0, 0.16);
+  --line: #000000;
+  --hover: transparent;
+  --press: transparent;
+  --accent: #2a0047;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(69, 39, 160, 0.13);
-  --danger: #c62828;
+  --accent-soft: #2a0047;
+  --focus: #000000;
+  --canvas-accent: #2a0047;
+  --danger: #d32f2f;
   --paper: #ffffff;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow: none;
   --radius: 8px;
   --radius-lg: 12px;
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
@@ -37,39 +43,33 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #121212;
-    --sidebar: #1a1a1a;
-    --surface: #222222;
-    --ink: #ececec;
+    --bg: #000000;
+    --sidebar: #000000;
+    --surface: #000000;
+    --ink: #ffffff;
     --dim: #9a9a9a;
-    --faint: #303030;
-    --hover: rgba(255, 255, 255, 0.06);
-    --press: rgba(255, 255, 255, 0.1);
-    --accent: #6a4bc4;
-    --accent-ink: #ffffff;
-    --accent-soft: rgba(106, 75, 196, 0.22);
-    --danger: #ef5350;
-    --paper: #0c0c0c;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+    --faint: rgba(255, 255, 255, 0.2);
+    --line: #ffffff;
+    --focus: #ffffff;
+    --canvas-accent: #ffffff;
+    --danger: #ff5c5c;
+    --paper: #000000;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #121212;
-  --sidebar: #1a1a1a;
-  --surface: #222222;
-  --ink: #ececec;
+  --bg: #000000;
+  --sidebar: #000000;
+  --surface: #000000;
+  --ink: #ffffff;
   --dim: #9a9a9a;
-  --faint: #303030;
-  --hover: rgba(255, 255, 255, 0.06);
-  --press: rgba(255, 255, 255, 0.1);
-  --accent: #6a4bc4;
-  --accent-ink: #ffffff;
-  --accent-soft: rgba(106, 75, 196, 0.22);
-  --danger: #ef5350;
-  --paper: #0c0c0c;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --faint: rgba(255, 255, 255, 0.2);
+  --line: #ffffff;
+  --focus: #ffffff;
+  --canvas-accent: #ffffff;
+  --danger: #ff5c5c;
+  --paper: #000000;
   color-scheme: dark;
 }
 

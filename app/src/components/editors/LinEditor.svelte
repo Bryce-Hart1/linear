@@ -17,7 +17,32 @@
   with changes asks first. Menu commands arrive through menu-router.ts.
 -->
 <script lang="ts">
-  import { Eye, FileOutput, Pause, PencilRuler, Play, Redo2, Undo2, ZoomIn, ZoomOut } from '@lucide/svelte';
+  import {
+    ArrowLeftRight,
+    BringToFront,
+    ChevronsDown,
+    Circle,
+    Diamond,
+    ChevronsUp,
+    ClipboardPaste,
+    Copy,
+    Eye,
+    FileOutput,
+    MousePointer2,
+    PanelRight,
+    Pause,
+    PencilRuler,
+    Play,
+    Redo2,
+    SendToBack,
+    Square,
+    Trash,
+    Triangle,
+    Type,
+    Undo2,
+    ZoomIn,
+    ZoomOut,
+  } from '@lucide/svelte';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { api } from '../../lib/api';
   import { THUMB_SIDE } from '../../lib/kinds';
@@ -54,10 +79,15 @@
   import { parseLin, serializeLin } from '../../lib/lin/format';
   import { bounds, capacity, hitTest, labelCapacity, partsIn, snapTarget, type Box, type Pt } from '../../lib/lin/geometry';
   import { commandFor, hintsFor, type Command } from '../../lib/lin/keys';
-  import { COPY_OFFSET, STEP, blankDoc, find, isLine, type Doc, type End, type ShapeKind } from '../../lib/lin/model';
+  import { COPY_OFFSET, STEP, blankDoc, find, isLine, shapeById, type Doc, type End, type Shape, type ShapeKind } from '../../lib/lin/model';
   import { snapPoint, snapShape, toGrid, type Guide } from '../../lib/lin/snap';
   import { exportSvg } from '../../lib/lin/svg';
   import { activeStyle, caretAt, caretAtEnd, describeStyle, insertAt, moveCaret, removeAt, toggleStyle, type Caret } from '../../lib/lin/text';
+  import { CURSORS, dotAt, dotPoint, handleAt, resizeTo, type HandleId, type Side } from '../../lib/lin-ui/handles';
+  import { DOT_OUT, GRAB, drawDots, drawHandles } from '../../lib/lin-ui/overlay';
+  import { setSize } from '../../lib/lin-ui/set';
+  import { LIN_SHORTCUTS } from '../../lib/lin-ui/shortcuts';
+  import type { Tool } from '../../lib/lin-ui/tool';
   import type { MenuId } from '../../lib/menu-ids';
   import { isTextField, onMenu } from '../../lib/menu-router';
   import { notes } from '../../lib/notes.svelte';
@@ -67,7 +97,10 @@
   import ContextMenu from '../ui/ContextMenu.svelte';
   import Dialog from '../ui/Dialog.svelte';
   import type { MenuItem } from '../ui/menu';
+  import ShortcutSheet from '../shell/ShortcutSheet.svelte';
   import EditorFrame from './EditorFrame.svelte';
+  import LinInspector from './lin/LinInspector.svelte';
+  import ToolRail from './lin/ToolRail.svelte';
 
   let { opened, fresh = false, onclose }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void } = $props();
 
@@ -119,6 +152,14 @@
   let zoom = $state(1);
   let pan = $state.raw<Pt>({ x: 0, y: 0 });
   let closing = $state(false);
+  /** The hand tool: presses move the page while editing. */
+  let hand = $state(false);
+  /** What the pointer is over, while nothing is being dragged: a shape (for its dots), a dot, or a handle. */
+  let hover = $state.raw<{ shape: number | null; dot: Side | null; handle: HandleId | null }>({ shape: null, dot: null, handle: null });
+  /** A line being drawn out of a shape's dot. */
+  let connect = $state.raw<{ from: number; at: Pt; to: Pt } | null>(null);
+  let sheet = $state(false);
+  let canvasMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   let exportMenu = $state<{ x: number; y: number } | null>(null);
   let exportButton: HTMLButtonElement | undefined = $state();
 
@@ -131,6 +172,11 @@
   const selKind = $derived(sel.length > 1 ? 'many' : selPart ? (isLine(selPart) ? 'line' : 'shape') : null);
   /** Typing in a shape, where Enter starts a new line; a line's label is one row. */
   const multiline = $derived(typing && !!selPart && !isLine(selPart));
+  const tool: Tool = $derived(armed ?? (hand ? 'hand' : 'select'));
+  const caretStyle = $derived(typing && selPart && !isLine(selPart) ? activeStyle(selPart, caret) : 0);
+  const cursor = $derived(
+    hover.handle ? CURSORS[hover.handle] : hover.dot || armed || connect ? 'crosshair' : hand || !edit ? 'grab' : 'default',
+  );
   const hints = $derived(hintsFor({ edit, typing, multiline, selected: selKind, armed: armed !== null, playing }));
 
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
@@ -226,7 +272,16 @@
       const at = armed === 'line' ? pointer : snapPoint(pointer, grid);
       view.ghost = armed === 'line' ? { tool: 'line', from: lineFrom?.at ?? null, to: at } : { tool: armed, at };
     }
+    if (edit && connect) view.ghost = { tool: 'line', from: connect.at, to: connect.to };
     drawDoc(ctx, doc, view);
+    // The clickable editor's own marks: the selected shape's handles, and the dots on the shape under the pointer.
+    if (edit && !typing && !armed && !hand) {
+      const px = 1 / scale;
+      const one = sel.length === 1 ? shapeById(doc, sel[0]) : undefined;
+      if (one && !connect) drawHandles(ctx, one, theme, px);
+      const dotted = connect ? shapeById(doc, connect.from) : hover.shape !== null && !drag ? shapeById(doc, hover.shape) : undefined;
+      if (dotted) drawDots(ctx, dotted, theme, px, connect ? null : hover.dot);
+    }
   }
 
   function frame(now: number) {
@@ -244,7 +299,7 @@
 
   // Anything on screen changing means a redraw on the next frame.
   $effect(() => {
-    void [doc, sel, armed, lineFrom, pointer, edit, typing, caret, zoom, pan, grid, guides, marquee];
+    void [doc, sel, armed, lineFrom, pointer, edit, typing, caret, zoom, pan, grid, guides, marquee, hover, connect, hand];
     redraw = true;
   });
 
@@ -476,6 +531,7 @@
     switch (c.do) {
       case 'arm':
         armed = c.tool;
+        hand = false;
         lineFrom = null;
         sel = [];
         break;
@@ -661,7 +717,8 @@
         if (armed) {
           armed = null;
           lineFrom = null;
-        } else if (sel.length > 0) sel = [];
+        } else if (hand) hand = false;
+        else if (sel.length > 0) sel = [];
         else requestClose();
         break;
     }
@@ -671,7 +728,9 @@
   function keysElsewhere(target: EventTarget | null): boolean {
     return (
       closing ||
+      sheet ||
       exportMenu !== null ||
+      canvasMenu !== null ||
       !!document.querySelector('dialog[open]') ||
       isTextField(target as HTMLInputElement | null)
     );
@@ -723,8 +782,30 @@
       case 'zoom.fit':
         run({ do: 'zoom', by: 'fit' });
         return true;
+      case 'help.shortcuts':
+        sheet = true;
+        return true;
     }
     return false;
+  }
+
+  /** A tool from the rail. Any tool means editing. */
+  function pickTool(t: Tool) {
+    if (!edit) setEdit(true);
+    endTyping();
+    if (t === 'select') {
+      armed = null;
+      lineFrom = null;
+      hand = false;
+    } else if (t === 'hand') {
+      armed = null;
+      lineFrom = null;
+      hand = true;
+    } else run({ do: 'arm', tool: t });
+  }
+
+  function sizeSelected(w: number, h: number) {
+    if (primary !== null) take(setSize(doc, primary, w, h));
   }
 
   /** Copy, Cut and Paste from the Edit menu, when the menu bar has them rather than the keydown. */
@@ -772,6 +853,7 @@
     | { kind: 'end'; id: number; which: 'a' | 'b' }
     | { kind: 'line'; id: number }
     | { kind: 'many'; ids: number[] }
+    | { kind: 'resize'; id: number; handle: HandleId }
   );
   let drag: Drag | null = null;
   /** Dragging out a selection box: the selection it started from. */
@@ -797,6 +879,11 @@
     if (!edit || e.button !== 0) return;
     const p = toPage(e);
     endTyping();
+    if (hand) {
+      panning = { sx: e.clientX, sy: e.clientY, from: pan };
+      canvas?.setPointerCapture(e.pointerId);
+      return;
+    }
     if (armed && armed !== 'line') {
       history.push(doc);
       const added = addShape(doc, armed, snapPoint(p, grid));
@@ -823,7 +910,23 @@
       lineFrom = null;
       return;
     }
-    const hit = hitTest(doc, p, sel.length === 1 ? sel[0] : null, Math.max(1, 1 / currentFit().scale));
+    const px = 1 / currentFit().scale;
+    // A handle of the selected shape: resize it.
+    const one = sel.length === 1 ? shapeById(doc, sel[0]) : undefined;
+    const handle = one && !e.shiftKey ? handleAt(one, p, GRAB * px) : null;
+    if (one && handle) {
+      drag = { start: p, base: doc, moved: false, kind: 'resize', id: one.id, handle };
+      canvas?.setPointerCapture(e.pointerId);
+      return;
+    }
+    // A dot on a shape's edge: draw a line out of it.
+    const dot = !e.shiftKey ? dotUnder(p, px) : null;
+    if (dot) {
+      connect = { from: dot.shape.id, at: dotPoint(dot.shape, dot.side), to: p };
+      canvas?.setPointerCapture(e.pointerId);
+      return;
+    }
+    const hit = hitTest(doc, p, sel.length === 1 ? sel[0] : null, Math.max(1, px));
     if (e.shiftKey) {
       // ⇧ adds a part to the selection, or takes it out; it never starts a drag.
       if (hit) sel = sel.includes(hit.id) ? sel.filter((i) => i !== hit.id) : [...sel, hit.id];
@@ -862,6 +965,11 @@
     }
     const p = toPage(e);
     pointer = p;
+    if (connect) {
+      connect = { ...connect, to: p };
+      return;
+    }
+    if (!drag && !boxing) updateHover(p);
     if (boxing) {
       const x = Math.min(boxing.start.x, p.x);
       const y = Math.min(boxing.start.y, p.y);
@@ -888,6 +996,14 @@
       doc = moveShape(d.base, d.id, r.at);
     } else if (d.kind === 'end') {
       doc = moveEnd(d.base, d.id, d.which, snap && !snapTarget(d.base, p) ? snapPoint(p, grid) : p);
+    } else if (d.kind === 'resize') {
+      const s = shapeById(d.base, d.id);
+      if (s) {
+        const r = resizeTo(s, d.handle, p, e.altKey);
+        const out = setSize(d.base, d.id, r.w, r.h, r.at);
+        // A size the text won't fit in is skipped: the shape stops at the last one that fits.
+        if ('doc' in out) doc = out.doc;
+      }
     } else if (d.kind === 'many') {
       const g = snap && grid;
       doc = moveBy(d.base, d.ids, g ? toGrid(p.x - d.start.x) : p.x - d.start.x, g ? toGrid(p.y - d.start.y) : p.y - d.start.y);
@@ -896,7 +1012,144 @@
     }
   }
 
+  /** The connector dot under `p`, on the front-most shape that has one there. */
+  function dotUnder(p: Pt, px: number): { shape: Shape; side: Side } | null {
+    for (let i = doc.items.length - 1; i >= 0; i--) {
+      const s = doc.items[i];
+      if (isLine(s)) continue;
+      const side = dotAt(s, p, GRAB * px, DOT_OUT * px);
+      if (side) return { shape: s, side };
+    }
+    return null;
+  }
+
+  function updateHover(p: Pt) {
+    let next: typeof hover = { shape: null, dot: null, handle: null };
+    if (edit && !armed && !hand && !typing) {
+      const px = 1 / currentFit().scale;
+      const one = sel.length === 1 ? shapeById(doc, sel[0]) : undefined;
+      const handle = one ? handleAt(one, p, GRAB * px) : null;
+      const dot = handle ? null : dotUnder(p, px);
+      const near = dot?.shape ?? snapTarget(doc, p, (DOT_OUT + GRAB) * px);
+      next = { shape: near?.id ?? null, dot: dot?.side ?? null, handle };
+    }
+    if (next.shape !== hover.shape || next.dot !== hover.dot || next.handle !== hover.handle) hover = next;
+  }
+
+  /** Lets go of a line drawn out of a dot: onto another shape it joins them, anywhere else it ends there. */
+  function finishConnect(c: NonNullable<typeof connect>) {
+    connect = null;
+    if (Math.hypot(c.to.x - c.at.x, c.to.y - c.at.y) * fit.scale < 6) {
+      sel = [c.from];
+      return;
+    }
+    const target = snapTarget(doc, c.to);
+    if (target?.id === c.from) return;
+    const added = addLine(doc, { to: c.from }, endAt(doc, target ? c.to : snapPoint(c.to, grid)));
+    if ('error' in added) {
+      say(added.error);
+      return;
+    }
+    history.push(doc);
+    doc = added.doc;
+    sel = added.id ? [added.id] : [];
+  }
+
+  /** Double-click a shape or line to type in it. */
+  function ondblclick(e: MouseEvent) {
+    if (!edit || armed || hand || failed) return;
+    const p = toPage(e as PointerEvent);
+    const hit = hitTest(doc, p, null, Math.max(1, 1 / currentFit().scale));
+    if (!hit) return;
+    endTyping();
+    sel = [hit.id];
+    run({ do: 'type' });
+  }
+
+  /** Right-click: what can be done to what's under the pointer, or to the page there. */
+  function oncontextmenu(e: MouseEvent) {
+    e.preventDefault();
+    if (failed) return;
+    const at = { x: e.clientX, y: e.clientY };
+    if (!edit) {
+      canvasMenu = {
+        ...at,
+        items: [
+          { label: 'Edit', icon: PencilRuler, hint: 'e', run: () => setEdit(true) },
+          { label: 'Export…', icon: FileOutput, hint: 'x', run: openExportMenu },
+        ],
+      };
+      return;
+    }
+    endTyping();
+    armed = null;
+    lineFrom = null;
+    const p = toPage(e as PointerEvent);
+    const hit = hitTest(doc, p, sel.length === 1 ? sel[0] : null, Math.max(1, 1 / currentFit().scale));
+    const arrange: MenuItem[] = [
+      { label: 'Bring to front', icon: BringToFront, hint: '}', run: () => run({ do: 'order', to: 'front' }) },
+      { label: 'Bring forward', icon: ChevronsUp, hint: ']', run: () => run({ do: 'order', to: 'up' }) },
+      { label: 'Send backward', icon: ChevronsDown, hint: '[', run: () => run({ do: 'order', to: 'down' }) },
+      { label: 'Send to back', icon: SendToBack, hint: '{', run: () => run({ do: 'order', to: 'back' }) },
+    ];
+    if (!hit) {
+      sel = [];
+      const ICONS = { rect: Square, circle: Circle, triangle: Triangle, diamond: Diamond };
+      const place = (t: ShapeKind, label: string): MenuItem => ({
+        label: `Add a ${label} here`,
+        icon: ICONS[t],
+        run: () => {
+          history.push(doc);
+          const added = addShape(doc, t, snapPoint(p, grid));
+          doc = added.doc;
+          sel = [added.id];
+        },
+      });
+      canvasMenu = {
+        ...at,
+        items: [
+          {
+            label: 'Paste here',
+            icon: ClipboardPaste,
+            hint: '⌘V',
+            disabled: getClip().length === 0,
+            run: () => {
+              pointer = p;
+              run({ do: 'paste' });
+            },
+          },
+          { label: 'Select all', icon: MousePointer2, hint: '⌘A', run: () => run({ do: 'all' }) },
+          { separator: true },
+          place('rect', 'rectangle'),
+          place('circle', 'circle'),
+          place('triangle', 'triangle'),
+          place('diamond', 'diamond'),
+        ],
+      };
+      return;
+    }
+    if (!sel.includes(hit.id)) sel = [hit.id];
+    const part = find(doc, hit.id)!;
+    const single = sel.length === 1;
+    canvasMenu = {
+      ...at,
+      items: [
+        ...(single
+          ? [{ label: isLine(part) ? 'Edit label' : 'Edit text', icon: Type, hint: '⏎', run: () => run({ do: 'type' }) } as MenuItem]
+          : []),
+        ...(single && isLine(part) ? [{ label: 'Flip direction', icon: ArrowLeftRight, hint: 'f', run: () => run({ do: 'flip' }) } as MenuItem] : []),
+        { label: 'Copy', icon: Copy, hint: '⌘C', run: () => run({ do: 'copy' }) },
+        { label: 'Duplicate', icon: Copy, hint: '⌘D', run: () => run({ do: 'duplicate' }) },
+        { separator: true },
+        ...arrange,
+        { separator: true },
+        { label: 'Delete', icon: Trash, hint: '⌫', danger: true, run: () => run({ do: 'delete' }) },
+      ],
+    };
+  }
+
   function onpointerup() {
+    if (connect) finishConnect(connect);
     drag = null;
     boxing = null;
     panning = null;
@@ -906,12 +1159,14 @@
 
   function onpointerleave() {
     pointer = null;
+    if (!drag && !connect) hover = { shape: null, dot: null, handle: null };
   }
 
   const fileState = $derived(saving ? 'Saving…' : exporting ? 'Exporting…' : dirty ? 'Not saved' : `Saved ${ago(meta.updatedAt)}`);
 </script>
 
-<svelte:window {onkeydown} />
+<!-- A release anywhere ends a drag, even one that left the canvas or lost its pointer capture. -->
+<svelte:window {onkeydown} {onpointerup} onpointercancel={onpointerup} />
 
 <EditorFrame name={meta.name} ext=".lin" {dirty} onback={requestClose} onrename={rename}>
   {#snippet actions()}
@@ -935,6 +1190,14 @@
       <button class="btn" class:primary={dirty} disabled={saving || !dirty} title="Save (⌘S)" onclick={() => save()}>
         {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
       </button>
+      <button
+        class="icon-btn"
+        title="Show or hide the inspector (⌥⌘I)"
+        aria-pressed={!!prefs.value?.ui.inspectorOpen}
+        onclick={() => prefs.set('ui.inspectorOpen', !prefs.value?.ui.inspectorOpen)}
+      >
+        <PanelRight size={17} />
+      </button>
     {/if}
   {/snippet}
 
@@ -957,10 +1220,37 @@
       <button class="btn" onclick={finish}>Back to the library</button>
     </div>
   {:else}
-    <div class="canvas" class:armed={armed !== null} class:viewing={!edit}>
-      <!-- The keyboard is handled on the window (the editor is keys); the mouse only says where. -->
-      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-      <canvas bind:this={canvas} aria-label="Diagram {meta.name}" {onpointerdown} {onpointermove} {onpointerup} {onpointerleave}></canvas>
+    <div class="work">
+      <ToolRail {tool} {grid} onpick={pickTool} ongrid={() => run({ do: 'grid' })} onhelp={() => (sheet = true)} />
+      <div class="canvas" class:viewing={!edit || hand}>
+        <!-- The keyboard is handled on the window (the editor is keys); the mouse says where, and right-click offers the rest. -->
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <canvas
+          bind:this={canvas}
+          aria-label="Diagram {meta.name}"
+          style:cursor
+          {onpointerdown}
+          {onpointermove}
+          {onpointerup}
+          {onpointerleave}
+          {ondblclick}
+          {oncontextmenu}
+        ></canvas>
+      </div>
+      {#if prefs.value?.ui.inspectorOpen}
+        <LinInspector
+          {doc}
+          {sel}
+          {edit}
+          {typing}
+          style={caretStyle}
+          act={apply}
+          {run}
+          onsize={sizeSelected}
+          ontype={() => run({ do: 'type' })}
+          onedit={() => setEdit(true)}
+        />
+      {/if}
     </div>
   {/if}
 
@@ -981,6 +1271,14 @@
   {/snippet}
 </EditorFrame>
 
+{#if canvasMenu}
+  <ContextMenu x={canvasMenu.x} y={canvasMenu.y} items={canvasMenu.items} onclose={() => (canvasMenu = null)} />
+{/if}
+
+{#if sheet}
+  <ShortcutSheet title="Diagram shortcuts" groups={LIN_SHORTCUTS} onclose={() => (sheet = false)} />
+{/if}
+
 {#if exportMenu}
   <ContextMenu x={exportMenu.x} y={exportMenu.y} items={exportItems} onclose={() => (exportMenu = null)} />
 {/if}
@@ -998,24 +1296,26 @@
 {/if}
 
 <style>
-  .canvas {
+  .work {
     position: absolute;
     inset: 0;
+    display: flex;
+  }
+  .canvas {
+    position: relative;
+    flex: 1;
+    min-width: 0;
   }
   canvas {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     display: block;
     touch-action: none;
   }
-  .armed canvas {
-    cursor: crosshair;
-  }
-  .viewing canvas {
-    cursor: grab;
-  }
   .viewing canvas:active {
-    cursor: grabbing;
+    cursor: grabbing !important;
   }
   .seg button {
     display: inline-flex;
@@ -1040,7 +1340,6 @@
     cursor: pointer;
   }
   .zoom:hover {
-    background: var(--hover);
     color: var(--ink);
   }
   .banner {
@@ -1049,8 +1348,7 @@
     gap: 8px;
     flex: none;
     padding: 8px 12px 8px 16px;
-    border-bottom: 1px solid var(--faint);
-    background: var(--accent-soft);
+    border-bottom: 1px solid var(--line);
   }
   .banner span {
     flex: 1;
@@ -1077,8 +1375,8 @@
   }
   .tag {
     padding: 1px 7px;
+    border: 1px solid var(--faint);
     border-radius: 10px;
-    background: var(--press);
     color: var(--dim);
     font-size: 11px;
   }

@@ -81,9 +81,8 @@
     padding: 0 0 16px;
     border: 1px solid var(--faint);
     border-radius: var(--radius-lg);
-    background: var(--surface);
+    background: var(--bg);
     color: var(--ink);
-    box-shadow: var(--shadow);
   }
   dialog::backdrop {
     background: rgba(0, 0, 0, 0.28);
@@ -125,7 +124,7 @@
     color: var(--dim);
   }
   .canvas:focus {
-    border-color: var(--accent);
+    border-color: var(--line);
     outline: none;
   }
   .log-head {
@@ -149,7 +148,7 @@
   .what {
     display: inline-block;
     width: 72px;
-    color: var(--accent);
+    color: var(--ink);
   }
   .none {
     color: var(--dim);

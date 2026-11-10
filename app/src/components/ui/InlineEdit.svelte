@@ -61,10 +61,9 @@
     min-width: 0;
     height: 24px;
     padding: 0 6px;
-    border: 1px solid var(--accent);
+    border: 1px solid var(--line);
     border-radius: 5px;
-    background: var(--surface);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--bg);
     outline: none;
     font: inherit;
   }

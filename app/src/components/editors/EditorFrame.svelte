@@ -104,7 +104,7 @@
     cursor: text;
   }
   .name:hover {
-    background: var(--hover);
+    box-shadow: inset 0 0 0 1px var(--faint);
   }
   .ext {
     flex: none;
@@ -115,7 +115,7 @@
   .dot {
     flex: none;
     margin-left: 4px;
-    color: var(--accent);
+    color: var(--ink);
     font-size: 11px;
   }
   .actions {
