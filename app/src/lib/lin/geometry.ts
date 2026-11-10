@@ -527,6 +527,63 @@ export function labelWidth(l: Line): number {
   return [...l.text].length * FONT_PX[l.f] * ADVANCE;
 }
 
+/** The patch of page a label sits on (draw.ts and svg.ts draw it), centred on `at`. */
+function labelPatch(l: Line, at: Pt): Box {
+  const w = labelWidth(l) + 8;
+  const h = FONT_PX[l.f] * LABEL_EM;
+  return { x: at.x - w / 2, y: at.y - h / 2, w, h };
+}
+
+const overlap = (a: Box, b: Box, gap: number) =>
+  a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
+
+/**
+ * Where a line's label goes: the middle of the line by length. Lines that run
+ * side by side (fanOffset) are spaced so each label has a row of its own
+ * across them, but a label is a wide box, and on a slanted line its width
+ * reaches into the next line's row. So when the labels of side-by-side lines
+ * would overlap, they slide apart along their lines, by as little as clears
+ * them and never off the line. Labels that already clear each other (any pair
+ * of level or upright lines, say) stay in the middle. linear's own change to
+ * drawBridge's drawing; the file is untouched.
+ */
+export function labelPoint(doc: Doc, l: Line, path: readonly Pt[] = linePath(doc, l)): Pt {
+  const middle = pointAt(path, pathLength(path) / 2);
+  const key = pairOf(l);
+  if (!key || l.text === '') return middle;
+  const mates = doc.items.filter((p): p is Line => {
+    if (!isLine(p) || p.text === '') return false;
+    const k = pairOf(p);
+    return k !== null && k[0] === key[0] && k[1] === key[1];
+  });
+  if (mates.length < 2) return middle;
+  // Every label slides the same way, from the lower-numbered shape toward the higher.
+  const info = mates.map((m) => {
+    const p = m.id === l.id ? path : linePath(doc, m);
+    return { m, path: p, half: pathLength(p) / 2, sign: (m.a as { to: number }).to === key[0] ? 1 : -1 };
+  });
+  const k = info.length;
+  const at = (i: number, step: number) => pointAt(info[i].path, info[i].half + info[i].sign * (i - (k - 1) / 2) * step);
+  const clear = (step: number) => {
+    const boxes = info.map((x, i) => labelPatch(x.m, at(i, step)));
+    for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) if (overlap(boxes[i], boxes[j], 6)) return false;
+    return true;
+  };
+  let step = 0;
+  if (!clear(0)) {
+    // The furthest a label can go and still sit wholly on its line.
+    const room = Math.min(...info.map((x) => Math.max(0, x.half - labelWidth(x.m) / 2 - PAD))) / ((k - 1) / 2);
+    step = room;
+    for (let s = 2; s < room; s += 2) {
+      if (clear(s)) {
+        step = s;
+        break;
+      }
+    }
+  }
+  return at(info.findIndex((x) => x.m.id === l.id), step);
+}
+
 /** Whether the label fits its line: one row, within the length of the line (and a fixed most). */
 export function labelFits(doc: Doc, l: Line): boolean {
   const n = [...l.text].length;

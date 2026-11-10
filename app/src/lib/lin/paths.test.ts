@@ -3,9 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { addLine, addShape, cycleRoute, typeChar, type Edited } from './edit';
 import {
   FAN,
+  LABEL_EM,
   hitTest,
   labelCapacity,
   labelFits,
+  labelPoint,
+  labelWidth,
+  midpoint,
   lineEnds,
   linePath,
   lineLength,
@@ -251,5 +255,64 @@ describe('lists: a line break in a shape', () => {
     expect(fits(rect('a\nb\nc'))).toBe(false);
     // Breaks alone take up rows too.
     expect(fits(rect('\n\n'))).toBe(false);
+  });
+});
+
+describe('labels on side-by-side lines', () => {
+  /** Two 200 × 80 rectangles on a slant (as in the bug report), joined both ways with labels. */
+  function slanted(a = 'view maps', b = 'change maps'): Doc {
+    let doc = addShape(blankDoc(), 'rect', { x: 200, y: 150 }).doc;
+    doc = addShape(doc, 'rect', { x: 600, y: 450 }).doc;
+    doc = { ...doc, items: doc.items.map((p) => (p.t === 'line' ? p : { ...p, w: 200 })) };
+    doc = joined(joined(doc, 1, 2), 2, 1);
+    return { ...doc, items: doc.items.map((p) => (p.id === 3 ? { ...p, text: a } : p.id === 4 ? { ...p, text: b } : p)) };
+  }
+
+  const patch = (doc: Doc, id: number) => {
+    const l = line(doc, id);
+    const at = labelPoint(doc, l);
+    const w = labelWidth(l) + 8;
+    const h = 18 * LABEL_EM;
+    return { x0: at.x - w / 2, x1: at.x + w / 2, y0: at.y - h / 2, y1: at.y + h / 2 };
+  };
+  const apart = (p: ReturnType<typeof patch>, q: ReturnType<typeof patch>) => p.x1 <= q.x0 || q.x1 <= p.x0 || p.y1 <= q.y0 || q.y1 <= p.y0;
+
+  it("slide apart on a slant, so neither hides the other", () => {
+    const doc = slanted();
+    // In the middle of each line they would overlap...
+    const mid = (id: number) => midpoint(linePath(doc, line(doc, id)));
+    const naive = (id: number) => {
+      const w = labelWidth(line(doc, id)) + 8;
+      const m = mid(id);
+      return { x0: m.x - w / 2, x1: m.x + w / 2, y0: m.y - 13.5, y1: m.y + 13.5 };
+    };
+    expect(apart(naive(3), naive(4))).toBe(false);
+    // ...so they don't sit there.
+    expect(apart(patch(doc, 3), patch(doc, 4))).toBe(true);
+  });
+
+  it('stay on their lines', () => {
+    const doc = slanted();
+    for (const id of [3, 4]) {
+      const l = line(doc, id);
+      const path = linePath(doc, l);
+      const at = labelPoint(doc, l);
+      // On the line: as close to it as its own end points are.
+      const { a, b } = lineEnds(doc, l);
+      const cross = Math.abs((b.x - a.x) * (a.y - at.y) - (a.x - at.x) * (b.y - a.y)) / Math.hypot(b.x - a.x, b.y - a.y);
+      expect(cross).toBeLessThan(0.01);
+      expect(Math.hypot(at.x - a.x, at.y - a.y)).toBeLessThan(pathLength(path));
+    }
+  });
+
+  it('stay in the middle when they already clear each other', () => {
+    let doc = joined(joined(two(), 1, 2), 2, 1);
+    doc = { ...doc, items: doc.items.map((p) => (p.id === 3 ? { ...p, text: 'login' } : p.id === 4 ? { ...p, text: 'token' } : p)) };
+    for (const id of [3, 4]) expect(labelPoint(doc, line(doc, id))).toEqual(midpoint(linePath(doc, line(doc, id))));
+  });
+
+  it('leave a lone label in the middle', () => {
+    const doc = slanted('view maps', '');
+    expect(labelPoint(doc, line(doc, 3))).toEqual(midpoint(linePath(doc, line(doc, 3))));
   });
 });

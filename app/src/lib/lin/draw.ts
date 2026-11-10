@@ -14,7 +14,7 @@ import {
   lineEnds,
   linePath,
   lineHeight,
-  midpoint,
+  labelPoint,
   pathLength,
   pointAt,
   snapTarget,
@@ -244,10 +244,10 @@ function head(ctx: CanvasRenderingContext2D, tip: Pt, from: Pt, color: string) {
   ctx.fill();
 }
 
-function drawLabel(ctx: CanvasRenderingContext2D, l: Line, path: readonly Pt[], theme: Theme, typing: boolean) {
+function drawLabel(ctx: CanvasRenderingContext2D, doc: Doc, l: Line, path: readonly Pt[], theme: Theme, typing: boolean) {
   if (l.text === '' && !typing) return;
   const px = FONT_PX[l.f];
-  const at = midpoint(path);
+  const at = labelPoint(doc, l, path);
   const w = Math.max(labelWidth(l), typing ? px * 0.6 : 0);
   // The label sits on a patch of page so the line doesn't run through the words.
   ctx.fillStyle = theme.paper;
@@ -295,7 +295,7 @@ function drawLine(ctx: CanvasRenderingContext2D, doc: Doc, l: Line, view: View) 
   if (l.head === 'both') head(ctx, a, tipFrom(path, false), color);
 
   if (pulsing) drawPulses(ctx, l, path, len, view, color, plain);
-  drawLabel(ctx, l, path, theme, view.typing === l.id);
+  drawLabel(ctx, doc, l, path, theme, view.typing === l.id);
 }
 
 function drawPulses(ctx: CanvasRenderingContext2D, l: Line, path: readonly Pt[], len: number, view: View, color: string, plain: boolean) {
