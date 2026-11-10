@@ -1,0 +1,24 @@
+[package]
+name = "linear-store"
+description = "linear's library: documents, versions, drafts, folders, palettes and preferences in SQLite, through Diesel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# 11/09/2026: the ORM and query builder over SQLite. `r2d2` gives the pool the
+# app shares between commands and the thumb:// protocol; the returning clause
+# lets an insert hand back its row in one statement.
+diesel = { version = "2.3.10", features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"] }
+# 11/09/2026: the SQL in migrations/ is compiled into the binary and run when
+# the store opens, so a fresh install and an upgrade both just work.
+diesel_migrations = { version = "2.3.2", features = ["sqlite"] }
+# 11/09/2026: SQLite itself, built from source, so the app needs nothing from
+# the system. Pinned to the newest version diesel 2.3 accepts (< 0.38).
+libsqlite3-sys = { version = "0.37.0", features = ["bundled"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+thiserror = "2.0.18"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,7 @@
+# Used by diesel_cli: `diesel migration run` then `diesel print-schema` against
+# a scratch database (DATABASE_URL=/path/to/scratch.db) regenerates schema.rs.
+[print_schema]
+file = "src/schema.rs"
+
+[migrations_directory]
+dir = "migrations"

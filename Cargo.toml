@@ -1,0 +1,21 @@
+# linear workspace. `crates/store` is the Diesel + SQLite library behind the
+# app: documents, their versions, drafts, folders, palettes and preferences.
+# It has no Tauri dependency, so it is tested on its own and a CLI can use it
+# later. `app/src-tauri` is the desktop shell.
+[workspace]
+resolver = "3"
+members = ["crates/store", "app/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+# A small, quiet desktop process: size-optimised, one codegen unit, no
+# unwinding tables (the same profile as drawBridge).
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

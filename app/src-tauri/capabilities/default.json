@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "What the one window may do: Tauri's core APIs (events, window state), the open and save panels, dragging the window by its top bar (it has no title bar of its own), and matching the window's light/dark look to the theme preference.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-theme",
+    "dialog:allow-open",
+    "dialog:allow-save"
+  ]
+}

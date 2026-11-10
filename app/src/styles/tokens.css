@@ -1,0 +1,72 @@
+/* linear's colours, in one place. Light by default; dark when the system is
+   dark (unless the user chose light), or when the user chose dark. Every
+   component reads these variables and nothing else.
+
+   --paper, --ink, --dim, --faint and --accent are also the drawing theme the
+   editors' canvases read (the names drawBridge's .lin code expects). */
+
+:root {
+  --bg: #f7f7f5;
+  --sidebar: #efefec;
+  --surface: #ffffff;
+  --ink: #18181b;
+  --dim: #6b6b70;
+  --faint: #dcdcd8;
+  --hover: rgba(0, 0, 0, 0.05);
+  --press: rgba(0, 0, 0, 0.09);
+  --accent: #3e63dd;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(62, 99, 221, 0.12);
+  --danger: #d93036;
+  --paper: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  /* Room on the left of the top bar for macOS's traffic lights when nothing else clears them. */
+  --lights: 0px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #141416;
+    --sidebar: #1b1b1f;
+    --surface: #232328;
+    --ink: #ececee;
+    --dim: #9a9aa2;
+    --faint: #313137;
+    --hover: rgba(255, 255, 255, 0.06);
+    --press: rgba(255, 255, 255, 0.1);
+    --accent: #7091f5;
+    --accent-ink: #0d0f14;
+    --accent-soft: rgba(112, 145, 245, 0.16);
+    --danger: #f2555a;
+    --paper: #0d0d0f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #141416;
+  --sidebar: #1b1b1f;
+  --surface: #232328;
+  --ink: #ececee;
+  --dim: #9a9aa2;
+  --faint: #313137;
+  --hover: rgba(255, 255, 255, 0.06);
+  --press: rgba(255, 255, 255, 0.1);
+  --accent: #7091f5;
+  --accent-ink: #0d0f14;
+  --accent-soft: rgba(112, 145, 245, 0.16);
+  --danger: #f2555a;
+  --paper: #0d0d0f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+.mac-overlay {
+  --lights: 78px;
+}
