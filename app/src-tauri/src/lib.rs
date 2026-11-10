@@ -18,6 +18,7 @@ const DB_FILE: &str = if cfg!(debug_assertions) { "linear-dev.db" } else { "line
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(commands::Opens::default())
         .register_asynchronous_uri_scheme_protocol("thumb", thumbs::protocol)
         .setup(|app| {
             let store = Store::open(&app.path().app_data_dir()?.join(DB_FILE))?;
@@ -68,17 +69,32 @@ pub fn run() {
             commands::list_palettes,
             commands::save_palette,
             commands::delete_palette,
+            commands::take_opened_files,
             commands::read_import,
             commands::write_export,
         ])
         .build(tauri::generate_context!())
         .expect("linear couldn't start");
 
-    app.run(|app, event| {
-        if let RunEvent::ExitRequested { .. } = event
-            && let Some(w) = app.get_webview_window("main")
-        {
-            window_state::save(&w);
+    app.run(|app, event| match event {
+        RunEvent::ExitRequested { .. } => {
+            if let Some(w) = app.get_webview_window("main") {
+                window_state::save(&w);
+            }
         }
+        // Files opened with linear from Finder: queue them and tell the page.
+        #[cfg(target_os = "macos")]
+        RunEvent::Opened { urls } => {
+            let paths: Vec<String> = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .map(|p| p.to_string_lossy().into_owned())
+                .collect();
+            if !paths.is_empty() {
+                app.state::<commands::Opens>().0.lock().unwrap_or_else(|e| e.into_inner()).extend(paths);
+                let _ = app.emit("files-opened", ());
+            }
+        }
+        _ => {}
     });
 }

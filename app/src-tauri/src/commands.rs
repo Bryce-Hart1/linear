@@ -189,6 +189,19 @@ pub async fn delete_palette(store: State<'_, Store>, id: i32) -> CmdResult<()> {
     on_store(&store, move |c| palettes::delete(c, id)).await
 }
 
+// ── Files opened from Finder ─────────────────────────────────────────────
+
+/// Paths of files opened with linear (double-clicked, or dropped on its Dock
+/// icon), waiting for the page to import them. They can arrive before the page
+/// has loaded, so they're queued here and the page takes them when it's ready.
+#[derive(Default)]
+pub struct Opens(pub std::sync::Mutex<Vec<String>>);
+
+#[tauri::command]
+pub fn take_opened_files(opens: State<'_, Opens>) -> Vec<String> {
+    std::mem::take(&mut *opens.0.lock().unwrap_or_else(|e| e.into_inner()))
+}
+
 // ── Files ────────────────────────────────────────────────────────────────
 
 /// A file picked or dropped to import, read but not yet checked: the page

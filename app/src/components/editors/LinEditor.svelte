@@ -102,7 +102,12 @@
   import LinInspector from './lin/LinInspector.svelte';
   import ToolRail from './lin/ToolRail.svelte';
 
-  let { opened, fresh = false, onclose }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void } = $props();
+  let {
+    opened,
+    fresh = false,
+    onclose,
+    onversions,
+  }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void; onversions?: (meta: DocMeta, dirty: boolean) => void } = $props();
 
   // Read once: the document this editor was opened on. Saves and renames update `meta`.
   const start = untrack(() => ({ ...opened, fresh }));
@@ -1168,7 +1173,7 @@
 <!-- A release anywhere ends a drag, even one that left the canvas or lost its pointer capture. -->
 <svelte:window {onkeydown} {onpointerup} onpointercancel={onpointerup} />
 
-<EditorFrame name={meta.name} ext=".lin" {dirty} onback={requestClose} onrename={rename}>
+<EditorFrame name={meta.name} ext=".lin" {dirty} onback={requestClose} onrename={rename} onversions={onversions && !failed ? () => onversions(meta, dirty) : undefined}>
   {#snippet actions()}
     {#if !failed}
       <div class="seg" role="group" aria-label="Mode">

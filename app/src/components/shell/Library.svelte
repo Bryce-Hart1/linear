@@ -5,7 +5,7 @@
   and cards drag onto the sidebar's folders.
 -->
 <script lang="ts">
-  import { ArchiveRestore, Copy, FileOutput, FolderInput, FolderOpen, Pencil, Pin, PinOff, Trash, Trash2 } from '@lucide/svelte';
+  import { ArchiveRestore, Copy, History, FileOutput, FolderInput, FolderOpen, Pencil, Pin, PinOff, Trash, Trash2 } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { dragging } from '../../lib/drag';
   import { folderPath } from '../../lib/folder-tree';
@@ -20,7 +20,11 @@
   import Confirm from './Confirm.svelte';
   import FolderPicker from './FolderPicker.svelte';
 
-  let { onopen, onnew }: { onopen: (doc: DocMeta) => void; onnew: (kind: Kind) => void } = $props();
+  let {
+    onopen,
+    onnew,
+    onversions,
+  }: { onopen: (doc: DocMeta) => void; onnew: (kind: Kind) => void; onversions: (doc: DocMeta) => void } = $props();
 
   const p = $derived(prefs.value!);
   const view = $derived(library.place.view);
@@ -83,6 +87,7 @@
             ? { label: 'Unpin', icon: PinOff, run: () => library.setPinned(d, false) }
             : { label: 'Pin', icon: Pin, run: () => library.setPinned(d, true) },
           { label: 'Move to…', icon: FolderInput, run: () => (moving = d) },
+          { label: 'Versions…', icon: History, run: () => onversions(d) },
           { label: 'Export file…', icon: FileOutput, hint: '⌘E', run: () => library.exportFile(d) },
           { separator: true },
           { label: 'Move to Trash', icon: Trash, danger: true, run: () => library.trash(d) },

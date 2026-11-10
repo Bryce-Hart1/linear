@@ -30,7 +30,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Productivity",
     "macOS": {
       "signingIdentity": "-"
@@ -41,6 +44,36 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "lin"
+        ],
+        "name": "linear diagram",
+        "description": "A diagram made in linear",
+        "role": "Editor",
+        "mimeType": "text/x-lin"
+      },
+      {
+        "ext": [
+          "lpx"
+        ],
+        "name": "linear pixel art",
+        "description": "Pixel art made in linear",
+        "role": "Editor",
+        "mimeType": "application/x-lpx"
+      },
+      {
+        "ext": [
+          "ldw"
+        ],
+        "name": "linear drawing",
+        "description": "A drawing made in linear",
+        "role": "Editor",
+        "mimeType": "application/x-ldw"
+      }
+    ],
+    "shortDescription": "Diagrams, pixel art and drawings"
   }
 }

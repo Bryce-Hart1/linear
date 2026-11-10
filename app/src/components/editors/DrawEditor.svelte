@@ -82,7 +82,12 @@
   import type { MenuItem } from '../ui/menu';
   import EditorFrame from './EditorFrame.svelte';
 
-  let { opened, fresh = false, onclose }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void } = $props();
+  let {
+    opened,
+    fresh = false,
+    onclose,
+    onversions,
+  }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void; onversions?: (meta: DocMeta, dirty: boolean) => void } = $props();
 
   const start = untrack(() => ({ ...opened, fresh }));
   const p0 = prefs.value!;
@@ -835,7 +840,7 @@
 
 <svelte:window {onkeydown} {onkeyup} onpointerup={(e) => onpointerup(e)} onpointercancel={(e) => onpointerup(e)} />
 
-<EditorFrame name={meta.name} ext=".ldw" {dirty} onback={requestClose} onrename={rename}>
+<EditorFrame name={meta.name} ext=".ldw" {dirty} onback={requestClose} onrename={rename} onversions={onversions && !failed ? () => onversions(meta, dirty) : undefined}>
   {#snippet actions()}
     {#if !failed}
       <button class="icon-btn" title="Undo (⌘Z)" disabled={!canUndo} onclick={() => run({ do: 'undo' })}><Undo2 size={16} /></button>

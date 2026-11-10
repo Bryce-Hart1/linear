@@ -5,7 +5,7 @@
   the pixel and drawing editors will too (M4, M5).
 -->
 <script lang="ts">
-  import { ChevronLeft } from '@lucide/svelte';
+  import { ChevronLeft, History } from '@lucide/svelte';
   import type { Snippet } from 'svelte';
   import InlineEdit from '../ui/InlineEdit.svelte';
 
@@ -15,6 +15,7 @@
     dirty,
     onback,
     onrename,
+    onversions,
     actions,
     children,
     status,
@@ -25,6 +26,8 @@
     dirty: boolean;
     onback: () => void;
     onrename: (name: string) => Promise<boolean>;
+    /** Opens the document's saved versions. */
+    onversions?: () => void;
     actions?: Snippet;
     children: Snippet;
     status?: Snippet;
@@ -52,7 +55,10 @@
         {#if dirty}<span class="dot" title="Unsaved changes">●</span>{/if}
       {/if}
     </div>
-    <div class="actions">{@render actions?.()}</div>
+    <div class="actions">
+      {#if onversions}<button class="icon-btn" title="Versions" onclick={onversions}><History size={16} /></button>{/if}
+      {@render actions?.()}
+    </div>
   </header>
   {#if banner}{@render banner()}{/if}
   <div class="stage">{@render children()}</div>

@@ -15,6 +15,7 @@
   import Library from './components/shell/Library.svelte';
   import NewDialog from './components/shell/NewDialog.svelte';
   import Settings from './components/shell/Settings.svelte';
+  import Versions from './components/shell/Versions.svelte';
   import ShortcutSheet from './components/shell/ShortcutSheet.svelte';
   import { LIBRARY_SHORTCUTS } from './lib/lin-ui/shortcuts';
   import Sidebar from './components/shell/Sidebar.svelte';
@@ -39,6 +40,9 @@
   let opened = $state<Opened | null>(null);
   /** The open document was just made, so it opens ready to edit. */
   let fresh = $state(false);
+  /** Bumped to open the same document afresh (after restoring a version). */
+  let openRev = $state(0);
+  let versionsOf = $state<{ meta: DocMeta; dirty: boolean } | null>(null);
   let dropping = $state(false);
   let loadError = $state<string | null>(null);
 
@@ -86,6 +90,23 @@
     } catch (e) {
       notes.say(errorMessage(e));
     }
+  }
+
+  /** A version was restored: reopen the document if it's the one open, and list again. */
+  async function restored(meta: DocMeta) {
+    versionsOf = null;
+    notes.say(`Restored an earlier version of ${meta.name}`);
+    if (opened?.meta.id === meta.id) {
+      try {
+        const o = await api.openDocument(meta.id);
+        fresh = false;
+        opened = o;
+        openRev++;
+      } catch (e) {
+        notes.say(errorMessage(e));
+      }
+    }
+    library.refresh();
   }
 
   function close() {
@@ -143,12 +164,21 @@
     prefs
       .load()
       .then(() => library.refreshFolders())
+      .then(() => takeOpened())
       .catch((e) => (loadError = errorMessage(e)));
     const off = onMenu(shell);
     const unlisten: (() => void)[] = [];
     let gone = false;
     const keep = (u: () => void) => (gone ? u() : unlisten.push(u));
     api.onMenu((id) => route(id)).then(keep);
+    // Files opened with linear from Finder: import them; open one straight away.
+    const takeOpened = async () => {
+      const paths = await api.takeOpenedFiles().catch(() => [] as string[]);
+      if (!paths.length) return;
+      const made = await library.importPaths(paths);
+      if (made.length === 1) open(made[0]);
+    };
+    api.onFilesOpened(takeOpened).then(keep);
     api
       .onDragDrop((e) => {
         if (dragging.active) return;
@@ -176,13 +206,13 @@
     {/if}
     <main>
       {#if opened}
-        {#key opened.meta.id}
+        {#key `${opened.meta.id}:${openRev}`}
           {#if opened.meta.kind === 'lin'}
-            <LinEditor {opened} {fresh} onclose={close} />
+            <LinEditor {opened} {fresh} onclose={close} onversions={(meta, dirty) => (versionsOf = { meta, dirty })} />
           {:else if opened.meta.kind === 'lpx'}
-            <PixelEditor {opened} {fresh} onclose={close} />
+            <PixelEditor {opened} {fresh} onclose={close} onversions={(meta, dirty) => (versionsOf = { meta, dirty })} />
           {:else if opened.meta.kind === 'ldw'}
-            <DrawEditor {opened} {fresh} onclose={close} />
+            <DrawEditor {opened} {fresh} onclose={close} onversions={(meta, dirty) => (versionsOf = { meta, dirty })} />
           {:else}
             <DocView {opened} onclose={close} />
           {/if}
@@ -213,7 +243,7 @@
             </button>
           </div>
         </header>
-        <Library onopen={open} onnew={newDocument} />
+        <Library onopen={open} onnew={newDocument} onversions={(meta) => (versionsOf = { meta, dirty: false })} />
       {/if}
     </main>
   </div>
@@ -232,6 +262,10 @@
     onclose={() => (making = null)}
     oncreate={(name, opts) => create(kind, name, opts)}
   />
+{/if}
+{#if versionsOf}
+  {@const v = versionsOf}
+  <Versions meta={v.meta} dirty={v.dirty} onclose={() => (versionsOf = null)} onrestored={() => restored(v.meta)} />
 {/if}
 {#if settingsOpen}
   <Settings onclose={() => (settingsOpen = false)} />

@@ -258,5 +258,7 @@ export function mockBackend(seed = true): Backend {
       return () => window.removeEventListener('keydown', onKey, true);
     },
     onDragDrop: async () => () => {},
+    takeOpenedFiles: async () => [],
+    onFilesOpened: async () => () => {},
   };
 }

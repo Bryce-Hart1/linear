@@ -76,6 +76,10 @@ export interface Backend {
   /** A native menu item was chosen (or, on the mock, its key pressed). */
   onMenu(cb: (id: MenuId) => void): Promise<Unlisten>;
   onDragDrop(cb: (e: DropEvent) => void): Promise<Unlisten>;
+  /** Files opened with linear from Finder, waiting to be imported; taking them empties the queue. */
+  takeOpenedFiles(): Promise<string[]>;
+  /** More files were opened with linear: take them with takeOpenedFiles. */
+  onFilesOpened(cb: () => void): Promise<Unlisten>;
 }
 
 const bytes = (b: Uint8Array | null) => (b ? Array.from(b) : null);
@@ -132,6 +136,8 @@ function tauri(): Backend {
 
     setWindowTheme: (theme) => getCurrentWindow().setTheme(theme),
     onMenu: (cb) => listen<MenuId>('menu', (e) => cb(e.payload)),
+    takeOpenedFiles: () => invoke('take_opened_files'),
+    onFilesOpened: (cb) => listen('files-opened', () => cb()),
     onDragDrop: (cb) =>
       getCurrentWebview().onDragDropEvent((e) => {
         const p = e.payload;

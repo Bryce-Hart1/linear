@@ -170,7 +170,8 @@ class Library {
   // ── Files ──────────────────────────────────────────────────────────────
 
   /** Imports files by path, each checked by its kind's own reader, into the open folder. */
-  async importPaths(paths: string[]) {
+  async importPaths(paths: string[]): Promise<DocMeta[]> {
+    const imported: DocMeta[] = [];
     let made = 0;
     let last: DocMeta | undefined;
     const problems: string[] = [];
@@ -194,6 +195,7 @@ class Library {
           thumbnail: thumb && Array.from(thumb),
         });
         made++;
+        imported.push(last);
       } catch (e) {
         problems.push(errorMessage(e));
       }
@@ -202,6 +204,7 @@ class Library {
     if (last) this.selected = last.id;
     if (problems.length) notes.say(made ? `Imported ${made}; ${problems.join('; ')}` : problems.join('; '));
     else if (made) notes.say(made === 1 ? `Imported ${last!.name}` : `Imported ${made} documents`);
+    return imported;
   }
 
   async import() {

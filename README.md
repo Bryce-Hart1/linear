@@ -9,7 +9,7 @@ An editor for three kinds of document:
 It is a Tauri app. The UI is Svelte, and the library (documents with their version history,
 drafts, folders, palettes and preferences) is kept in SQLite through Diesel.
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M5 (drawings).** All three editors are in. Done so far:
+The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M6 (polish and packaging).** All three editors are in. Done so far:
 
 - the window, the native menu, light and dark themes, and preferences kept in the library;
 - documents with version history, drafts, pinning and a Trash;
@@ -40,12 +40,16 @@ The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M5 (drawings).** All thre
   - selection by click or lasso: move, recolour, resize, reorder, copy and paste;
   - a white or transparent page of any size;
   - PNG, JPEG and SVG export.
+- version history for every document: preview any saved version, and restore it (as a new save);
+- a Settings screen for every preference;
+- `.lin`, `.lpx` and `.ldw` files open in linear from Finder, which imports them into the library;
+- a macOS `.app` and `.dmg` (`npm --prefix app run tauri build`).
 
 The `.lin` code in `app/src/lib/lin` is drawBridge's, unchanged except for the colour its canvas reads
 for the accent. `fixtures/flow.lin` is the golden file it must round-trip byte for byte.
 `app/src/lib/lin-ui` is linear's own: set-to-value edits, handles and dots, and the shortcut lists. Everything it
 makes is plain `.lin` v1. `app/src/lib/lpx` is the pixel-art format (layers of palette indices, deflated) and
-everything that draws on it. `app/src/lib/ldw` is the drawing format (vector strokes) and its geometry. Next is polish and packaging (M6).
+everything that draws on it. `app/src/lib/ldw` is the drawing format (vector strokes) and its geometry. What's left is in the plan's "Later" list.
 
 ## Layout
 
@@ -76,6 +80,16 @@ npm --prefix app run dev
 
 Development builds keep their library apart from the real one:
 `~/Library/Application Support/io.github.bryce-hart1.linear/linear-dev.db`. Release builds use `linear.db`.
+
+## Building the app
+
+```bash
+npm --prefix app run tauri build
+```
+
+This writes `target/release/bundle/macos/linear.app` and a `.dmg` next to it, in `target/release/bundle/dmg/`. The app is
+signed ad hoc (`signingIdentity: "-"`), so it runs on this Mac. To give it to anyone else it needs a Developer ID
+signature and notarising.
 
 ## Checks
 

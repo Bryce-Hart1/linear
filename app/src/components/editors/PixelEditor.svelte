@@ -98,7 +98,12 @@
   import CanvasSizeDialog from './lpx/CanvasSizeDialog.svelte';
   import PixelPanel from './lpx/PixelPanel.svelte';
 
-  let { opened, fresh = false, onclose }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void } = $props();
+  let {
+    opened,
+    fresh = false,
+    onclose,
+    onversions,
+  }: { opened: Opened; fresh?: boolean; onclose: (meta: DocMeta) => void; onversions?: (meta: DocMeta, dirty: boolean) => void } = $props();
 
   const start = untrack(() => ({ ...opened, fresh }));
   const p0 = prefs.value!;
@@ -1129,7 +1134,7 @@
 
 <svelte:window {onkeydown} {onkeyup} {onpointerup} onpointercancel={onpointerup} />
 
-<EditorFrame name={meta.name} ext=".lpx" {dirty} onback={requestClose} onrename={rename}>
+<EditorFrame name={meta.name} ext=".lpx" {dirty} onback={requestClose} onrename={rename} onversions={onversions && !failed ? () => onversions(meta, dirty) : undefined}>
   {#snippet actions()}
     {#if !failed}
       <button class="icon-btn" title="Undo (⌘Z)" disabled={!canUndo} onclick={undo}><Undo2 size={16} /></button>
