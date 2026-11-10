@@ -14,7 +14,10 @@
   let name = $state(untrack(() => `Untitled ${kindInfo(kind).label.toLowerCase()}`));
   let input: HTMLInputElement | undefined = $state();
 
-  onMount(() => input?.select());
+  onMount(() => {
+    input?.focus();
+    input?.select();
+  });
 
   function submit(e: SubmitEvent) {
     e.preventDefault();
@@ -26,7 +29,8 @@
   <form id="new-doc" onsubmit={submit}>
     <label>
       <span>Name</span>
-      <input class="input" bind:this={input} bind:value={name} spellcheck="false" />
+      <!-- svelte-ignore a11y_autofocus -->
+      <input class="input" bind:this={input} bind:value={name} spellcheck="false" autofocus />
     </label>
     <p class="where">Goes in <strong>{where}</strong> as a <code>{info.ext}</code></p>
   </form>

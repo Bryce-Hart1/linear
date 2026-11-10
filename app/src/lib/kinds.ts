@@ -5,9 +5,13 @@
 
 import { Grid3x3, PenLine, Workflow } from '@lucide/svelte';
 import type { Component } from 'svelte';
+import { thumbnail as linThumbnail } from './lin/draw';
 import { parseLin, serializeLin } from './lin/format';
 import { blankDoc } from './lin/model';
 import type { Kind } from './types';
+
+/** How big a library thumbnail is drawn, at most, on its longer side. */
+export const THUMB_SIDE = 480;
 
 export interface KindInfo {
   kind: Kind;
@@ -19,12 +23,12 @@ export interface KindInfo {
   /** One line for the New menu and the empty library. */
   blurb: string;
   icon: Component;
-  /** The kind's own colour, for its icon. */
-  tint: string;
   /** What a new one starts as, serialised; null until linear can make this kind. */
   blank: (() => string) | null;
   /** Throws, saying what's wrong, if `text` isn't a readable file of this kind; null until linear can read it. */
   check: ((text: string) => void) | null;
+  /** A small picture of `text` for the library (JPEG or PNG), or null for an empty page or a kind without one yet. */
+  thumbnail: (text: string) => Promise<Uint8Array | null>;
   /** The milestone that brings this kind, while it isn't here yet. */
   comingIn?: string;
 }
@@ -37,9 +41,16 @@ export const KINDS: readonly KindInfo[] = [
     plural: 'Diagrams',
     blurb: 'Shapes joined by lines that can pulse',
     icon: Workflow,
-    tint: '#3e63dd',
     blank: () => serializeLin(blankDoc()),
     check: (text) => void parseLin(text),
+    thumbnail: async (text) => {
+      try {
+        return await linThumbnail(parseLin(text), THUMB_SIDE);
+      } catch {
+        // An empty page has no picture (draw.ts throws), and nor does an unreadable file.
+        return null;
+      }
+    },
   },
   {
     kind: 'lpx',
@@ -48,9 +59,9 @@ export const KINDS: readonly KindInfo[] = [
     plural: 'Pixel art',
     blurb: 'Layers and a palette, one pixel at a time',
     icon: Grid3x3,
-    tint: '#d6409f',
     blank: null,
     check: null,
+    thumbnail: async () => null,
     comingIn: 'M4',
   },
   {
@@ -60,9 +71,9 @@ export const KINDS: readonly KindInfo[] = [
     plural: 'Drawings',
     blurb: 'Pen strokes on a page',
     icon: PenLine,
-    tint: '#46a758',
     blank: null,
     check: null,
+    thumbnail: async () => null,
     comingIn: 'M5',
   },
 ];

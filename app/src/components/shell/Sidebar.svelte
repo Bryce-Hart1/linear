@@ -123,7 +123,7 @@
       <div class="menu" role="menu">
         {#each KINDS as k (k.kind)}
           <button class="menu-item" role="menuitem" disabled={!k.blank} onclick={() => pick(k.kind)}>
-            <span class="glyph" style:color={k.tint}><k.icon size={18} /></span>
+            <span class="glyph"><k.icon size={18} /></span>
             <span class="text">
               <span class="label">{k.label} <span class="ext">{k.ext}</span></span>
               <span class="blurb">{k.blank ? k.blurb : `Coming in ${k.comingIn}`}</span>

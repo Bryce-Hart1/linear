@@ -9,16 +9,22 @@ An editor for three kinds of document:
 It is a Tauri app. The UI is Svelte, and the library (documents with their version history,
 drafts, folders, palettes and preferences) is kept in SQLite through Diesel.
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M1 (the library).** Done so far:
+The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M2 (`.lin` editing).** Done so far:
 
 - the window, the native menu, light and dark themes, and preferences kept in the library;
 - documents with version history, drafts, pinning and a Trash;
 - nested folders;
-- a grid or list of documents, with search, a kind filter and sorting;
-- importing `.lin` files (from the file picker or dropped from Finder) and exporting them as files.
+- a grid or list of documents with thumbnails, search, a kind filter and sorting;
+- importing `.lin` files (from the file picker or dropped from Finder) and exporting them as files;
+- the `.lin` editor, carried over from drawBridge with its keyboard map and tests:
+  - ⌘S saves a version with a thumbnail;
+  - unsaved work is kept as a draft and offered back when the diagram next opens;
+  - closing with changes asks first;
+  - exports to PNG, JPEG and SVG.
 
-Diagrams can be made, opened and exported. Their editor arrives in M2; until then, opening one shows what the
-library holds for it. Pixel art (M4) and drawings (M5) follow.
+The `.lin` code in `app/src/lib/lin` is drawBridge's, unchanged except for the colour its canvas reads
+for the accent. `fixtures/flow.lin` is the golden file it must round-trip byte for byte. Next is M3,
+the clickable editor (toolbar, inspector, handles). Pixel art (M4) and drawings (M5) follow.
 
 ## Layout
 

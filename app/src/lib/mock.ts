@@ -5,6 +5,8 @@
 
 import type { Backend } from './api';
 import { menuIdFor } from './menu-ids';
+import { thumbnail as linThumbnail } from './lin/draw';
+import { parseLin } from './lin/format';
 import { MockLibrary, importFromFile } from './mock-library';
 import type { Import, Prefs } from './types';
 
@@ -101,6 +103,23 @@ function call<T>(f: () => T): Promise<T> {
 export function mockBackend(seed = true): Backend {
   let prefs = clone(DEFAULT_PREFS);
   const lib = new MockLibrary(seed);
+  // Thumbnails as blob: URLs, by document id. The samples' are drawn once, before the first listing.
+  const thumbs = new Map<number, string>();
+  const keepThumb = (id: number, bytes: Uint8Array | number[] | null | undefined) => {
+    // Never revoked: a duplicate shares its original's URL, and the mock is short-lived.
+    thumbs.delete(id);
+    if (bytes) thumbs.set(id, URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' })));
+    lib.setHasThumbnail(id, !!bytes);
+  };
+  const drawn: Promise<unknown> =
+    typeof document === 'undefined'
+      ? Promise.resolve()
+      : Promise.all(
+          lib
+            .everything()
+            .filter((d) => d.meta.kind === 'lin')
+            .map(async (d) => keepThumb(d.meta.id, await linThumbnail(parseLin(d.content), 480).catch(() => null))),
+        );
   // Files picked in the browser, by the fake path pickImports hands out.
   const picked = new Map<string, File>();
   const mac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
@@ -118,20 +137,42 @@ export function mockBackend(seed = true): Backend {
       return clone(prefs);
     },
 
-    listDocuments: (q) => call(() => lib.listDocuments(q)),
+    listDocuments: async (q) => (await drawn, call(() => lib.listDocuments(q))),
     listFolders: () => call(() => lib.listFolders()),
     createFolder: (parent, name) => call(() => lib.createFolder(parent, name)),
     renameFolder: (id, name) => call(() => lib.renameFolder(id, name)),
     moveFolder: (id, parent) => call(() => lib.moveFolder(id, parent)),
     deleteFolder: (id) => call(() => lib.deleteFolder(id)),
 
-    createDocument: (doc) => call(() => lib.createDocument(doc)),
+    createDocument: (doc) =>
+      call(() => {
+        const made = lib.createDocument(doc);
+        if (doc.thumbnail) keepThumb(made.id, doc.thumbnail);
+        return { ...made, hasThumbnail: !!doc.thumbnail };
+      }),
     openDocument: (id) => call(() => lib.openDocument(id)),
-    saveDocument: (id, content) => call(() => lib.saveDocument(id, content)),
+    saveDocument: (id, content, thumbnail) =>
+      call(() => {
+        const r = lib.saveDocument(id, content);
+        if (r.status === 'saved') {
+          keepThumb(id, thumbnail);
+          r.meta.hasThumbnail = !!thumbnail;
+        }
+        return r;
+      }),
     documentContent: (id) => call(() => lib.documentContent(id)),
     renameDocument: (id, name) => call(() => lib.renameDocument(id, name)),
     moveDocument: (id, folder) => call(() => lib.moveDocument(id, folder)),
-    duplicateDocument: (id) => call(() => lib.duplicateDocument(id)),
+    duplicateDocument: (id) =>
+      call(() => {
+        const copy = lib.duplicateDocument(id);
+        if (thumbs.has(id)) {
+          thumbs.set(copy.id, thumbs.get(id)!);
+          lib.setHasThumbnail(copy.id, true);
+          copy.hasThumbnail = true;
+        }
+        return copy;
+      }),
     setPinned: (id, pinned) => call(() => lib.setPinned(id, pinned)),
     trashDocument: (id) => call(() => lib.trashDocument(id)),
     restoreDocument: (id) => call(() => lib.restoreDocument(id)),
@@ -175,7 +216,7 @@ export function mockBackend(seed = true): Backend {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     },
-    thumbUrl: () => null,
+    thumbUrl: (doc) => (doc.hasThumbnail ? (thumbs.get(doc.id) ?? null) : null),
 
     setWindowTheme: async () => {},
     onMenu: async (cb) => {

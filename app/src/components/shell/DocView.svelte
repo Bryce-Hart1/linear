@@ -39,7 +39,7 @@
 
 <div class="body">
   <div class="panel">
-    <span class="glyph" style:color={info.tint}><info.icon size={28} /></span>
+    <span class="glyph"><info.icon size={28} /></span>
     <h2>The {info.label.toLowerCase()} editor isn't here yet</h2>
     <p>
       {opened.meta.kind === 'lin' ? 'It arrives in the next milestone (M2).' : `It arrives in ${info.comingIn}.`} For now, here is what

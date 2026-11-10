@@ -4,7 +4,8 @@
 // Trash and folders behave the same. It starts with a few sample documents.
 
 import { serializeLin } from './lin/format';
-import { blankDoc, newLine, newShape } from './lin/model';
+import { blankDoc } from './lin/model';
+import { SAMPLE_DIAGRAM } from './lin/sample';
 import type { DocMeta, Draft, Folder, Import, Kind, NewDoc, Opened, Query, Saved, VersionMeta } from './types';
 
 const MAX_NAME = 120;
@@ -42,25 +43,7 @@ export function freeName(taken: readonly string[], wanted: string): string {
   }
 }
 
-const SAMPLE_FLOW = (() => {
-  const d = blankDoc();
-  const a = newShape(1, 'rect', 260, 300),
-    b = newShape(2, 'diamond', 600, 300),
-    c = newShape(3, 'circle', 940, 300);
-  a.text = 'client';
-  a.c = 6;
-  b.text = 'auth?';
-  b.c = 3;
-  c.text = 'db';
-  c.c = 4;
-  const l1 = newLine(4, { to: 1 }, { to: 2 });
-  const l2 = newLine(5, { to: 2 }, { to: 3 });
-  l1.head = l2.head = 'end';
-  l1.pulse = l2.pulse = 'fwd';
-  d.items = [a, b, c, l1, l2];
-  d.next = 6;
-  return serializeLin(d);
-})();
+const SAMPLE_FLOW = serializeLin(SAMPLE_DIAGRAM);
 
 const BLANK_LIN = serializeLin(blankDoc());
 // Stand-ins until those formats exist (M4, M5); only the library looks at them.
@@ -130,6 +113,15 @@ export class MockLibrary {
   }
 
   private copy = (d: DocMeta): DocMeta => ({ ...d });
+
+  /** Every document, newest version included: for the mock to draw thumbnails from. */
+  everything(): { meta: DocMeta; content: string }[] {
+    return this.docs.map((d) => ({ meta: this.copy(d), content: this.head(d.id).content }));
+  }
+
+  setHasThumbnail(id: number, has: boolean) {
+    this.doc(id).hasThumbnail = has;
+  }
 
   listDocuments(q: Query): DocMeta[] {
     let out = this.docs.filter((d) => {

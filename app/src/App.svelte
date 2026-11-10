@@ -8,6 +8,7 @@
   import { FileDown, LayoutGrid, List, PanelLeft } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import KeyTest from './components/dev/KeyTest.svelte';
+  import LinEditor from './components/editors/LinEditor.svelte';
   import DocView from './components/shell/DocView.svelte';
   import Library from './components/shell/Library.svelte';
   import NewDialog from './components/shell/NewDialog.svelte';
@@ -31,6 +32,8 @@
   let keyTestOpen = $state(false);
   let making = $state<Kind | null>(null);
   let opened = $state<Opened | null>(null);
+  /** The open document was just made, so it opens ready to edit. */
+  let fresh = $state(false);
   let dropping = $state(false);
   let loadError = $state<string | null>(null);
 
@@ -66,12 +69,14 @@
   async function create(kind: Kind, name: string) {
     making = null;
     const doc = await library.create(kind, name);
-    if (doc) open(doc);
+    if (doc) open(doc, true);
   }
 
-  async function open(doc: DocMeta) {
+  async function open(doc: DocMeta, isNew = false) {
     try {
-      opened = await api.openDocument(doc.id);
+      const o = await api.openDocument(doc.id);
+      fresh = isNew;
+      opened = o;
       library.selected = doc.id;
     } catch (e) {
       notes.say(errorMessage(e));
@@ -168,7 +173,11 @@
     <main>
       {#if opened}
         {#key opened.meta.id}
-          <DocView {opened} onclose={close} />
+          {#if opened.meta.kind === 'lin'}
+            <LinEditor {opened} {fresh} onclose={close} />
+          {:else}
+            <DocView {opened} onclose={close} />
+          {/if}
         {/key}
       {:else}
         <header class="topbar" data-tauri-drag-region>

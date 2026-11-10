@@ -2,22 +2,28 @@
    dark (unless the user chose light), or when the user chose dark. Every
    component reads these variables and nothing else.
 
+   The look is monochrome: neutral greys, black and white. The one colour is
+   a dark purple (#4527A0), kept for what you're acting on: the primary
+   button, the selection, focus rings and drop targets. On a dark page it is
+   lifted a little (#6a4bc4) so rings and selected text stay visible.
+
    --paper, --ink, --dim, --faint and --accent are also the drawing theme the
-   editors' canvases read (the names drawBridge's .lin code expects). */
+   editors' canvases read (the names drawBridge's .lin code expects). The ten
+   .lin colours are part of the file format and don't change with the theme. */
 
 :root {
-  --bg: #f7f7f5;
-  --sidebar: #efefec;
+  --bg: #f7f7f7;
+  --sidebar: #efefef;
   --surface: #ffffff;
-  --ink: #18181b;
-  --dim: #6b6b70;
-  --faint: #dcdcd8;
+  --ink: #161616;
+  --dim: #6e6e6e;
+  --faint: #dddddd;
   --hover: rgba(0, 0, 0, 0.05);
   --press: rgba(0, 0, 0, 0.09);
-  --accent: #3e63dd;
+  --accent: #4527a0;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(62, 99, 221, 0.12);
-  --danger: #d93036;
+  --accent-soft: rgba(69, 39, 160, 0.13);
+  --danger: #c62828;
   --paper: #ffffff;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.1);
   --radius: 8px;
@@ -31,38 +37,38 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #141416;
-    --sidebar: #1b1b1f;
-    --surface: #232328;
-    --ink: #ececee;
-    --dim: #9a9aa2;
-    --faint: #313137;
+    --bg: #121212;
+    --sidebar: #1a1a1a;
+    --surface: #222222;
+    --ink: #ececec;
+    --dim: #9a9a9a;
+    --faint: #303030;
     --hover: rgba(255, 255, 255, 0.06);
     --press: rgba(255, 255, 255, 0.1);
-    --accent: #7091f5;
-    --accent-ink: #0d0f14;
-    --accent-soft: rgba(112, 145, 245, 0.16);
-    --danger: #f2555a;
-    --paper: #0d0d0f;
+    --accent: #6a4bc4;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(106, 75, 196, 0.22);
+    --danger: #ef5350;
+    --paper: #0c0c0c;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #141416;
-  --sidebar: #1b1b1f;
-  --surface: #232328;
-  --ink: #ececee;
-  --dim: #9a9aa2;
-  --faint: #313137;
+  --bg: #121212;
+  --sidebar: #1a1a1a;
+  --surface: #222222;
+  --ink: #ececec;
+  --dim: #9a9a9a;
+  --faint: #303030;
   --hover: rgba(255, 255, 255, 0.06);
   --press: rgba(255, 255, 255, 0.1);
-  --accent: #7091f5;
-  --accent-ink: #0d0f14;
-  --accent-soft: rgba(112, 145, 245, 0.16);
-  --danger: #f2555a;
-  --paper: #0d0d0f;
+  --accent: #6a4bc4;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(106, 75, 196, 0.22);
+  --danger: #ef5350;
+  --paper: #0c0c0c;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.45);
   color-scheme: dark;
 }

@@ -104,7 +104,9 @@ class Library {
       notes.say(`${info.plural} arrive in ${info.comingIn}.`);
       return undefined;
     }
-    return this.act(() => api.createDocument({ name, kind, folder: this.newFolder, content: info.blank!() }));
+    const content = info.blank();
+    const thumb = await info.thumbnail(content);
+    return this.act(() => api.createDocument({ name, kind, folder: this.newFolder, content, thumbnail: thumb && Array.from(thumb) }));
   }
 
   async rename(doc: DocMeta, name: string): Promise<boolean> {
@@ -183,7 +185,14 @@ class Library {
           throw new Error(`${file.name}${info.ext}: ${errorMessage(e)}`);
         }
         // Kept exactly as read: a file that round-trips stays byte-for-byte the same.
-        last = await api.createDocument({ name: file.name, kind: file.kind, folder: this.newFolder, content: file.text });
+        const thumb = await info.thumbnail(file.text);
+        last = await api.createDocument({
+          name: file.name,
+          kind: file.kind,
+          folder: this.newFolder,
+          content: file.text,
+          thumbnail: thumb && Array.from(thumb),
+        });
         made++;
       } catch (e) {
         problems.push(errorMessage(e));

@@ -209,7 +209,7 @@
         <div class="kinds">
           {#each KINDS as k (k.kind)}
             <button class="kind" disabled={!k.blank} onclick={() => onnew(k.kind)}>
-              <span class="glyph" style:color={k.tint}><k.icon size={26} /></span>
+              <span class="glyph"><k.icon size={26} /></span>
               <span class="label">{k.label}</span>
               <span class="blurb">{k.blank ? k.blurb : `Coming in ${k.comingIn}`}</span>
               <span class="ext">{k.ext}</span>
@@ -237,7 +237,7 @@
           ondragend={() => (dragging.active = false)}
           onkeydown={() => {}}
         >
-          <div class="thumb" style:--tint={info.tint}>
+          <div class="thumb">
             {#if url}<img src={url} alt="" loading="lazy" draggable="false" />{:else}<info.icon size={34} strokeWidth={1.6} />{/if}
             {#if d.pinned}<span class="pin" title="Pinned"><Pin size={12} /></span>{/if}
           </div>
@@ -280,7 +280,7 @@
           onkeydown={() => {}}
         >
           <span class="cell name">
-            <span class="icon" style:color={info.tint}><info.icon size={16} /></span>
+            <span class="icon"><info.icon size={16} /></span>
             {#if renaming === d.id}
               <InlineEdit value={d.name} oncommit={(n) => rename(d, n)} oncancel={() => (renaming = null)} />
             {:else}
@@ -382,8 +382,8 @@
     overflow: hidden;
     border: 1px solid var(--faint);
     border-radius: 10px;
-    background: color-mix(in srgb, var(--tint) 9%, var(--surface));
-    color: var(--tint);
+    background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+    color: var(--dim);
     transition: box-shadow 120ms;
   }
   .card:hover .thumb {
@@ -497,6 +497,7 @@
   .icon {
     display: grid;
     flex: none;
+    color: var(--dim);
   }
   .dim {
     color: var(--dim);
