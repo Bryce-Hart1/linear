@@ -9,6 +9,8 @@ import { thumbnail as linThumbnail } from './lin/draw';
 import { parseLin } from './lin/format';
 import { MockLibrary, importFromFile } from './mock-library';
 import { thumbnailLpx } from './lpx/render';
+import { thumbnailLdw } from './ldw/draw';
+import { parseLdw } from './ldw/format';
 import { parseLpx } from './lpx/format';
 import type { Import, Palette, Prefs } from './types';
 
@@ -121,11 +123,15 @@ export function mockBackend(seed = true): Backend {
       : Promise.all(
           lib
             .everything()
-            .filter((d) => d.meta.kind !== 'ldw')
             .map(async (d) =>
               keepThumb(
                 d.meta.id,
-                await (d.meta.kind === 'lin' ? linThumbnail(parseLin(d.content), 480) : thumbnailLpx(parseLpx(d.content), 480)).catch(() => null),
+                await (d.meta.kind === 'lin'
+                  ? linThumbnail(parseLin(d.content), 480)
+                  : d.meta.kind === 'lpx'
+                    ? thumbnailLpx(parseLpx(d.content), 480)
+                    : thumbnailLdw(parseLdw(d.content), 480)
+                ).catch(() => null),
               ),
             ),
         );

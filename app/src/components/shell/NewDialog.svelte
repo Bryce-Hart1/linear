@@ -1,13 +1,14 @@
 <!--
   Names a new document before it's made. Pixel art also asks for its size and
-  the palette it starts with; the choices are remembered for next time.
-  Drawings will ask for their page size here too (M5).
+  the palette it starts with, and a drawing for its page size; the choices are
+  remembered for next time.
 -->
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { api } from '../../lib/api';
   import { kindInfo, type NewOptions } from '../../lib/kinds';
   import { MAX_SIDE, PRESETS } from '../../lib/lpx/model';
+  import { MAX_SIDE as MAX_PAGE, MIN_SIDE as MIN_PAGE } from '../../lib/ldw/model';
   import { prefs } from '../../lib/prefs.svelte';
   import type { Kind, Palette } from '../../lib/types';
   import Dialog from '../ui/Dialog.svelte';
@@ -37,6 +38,17 @@
   const chosen = $derived(choices.find((c) => c.id === palette) ?? choices[0]);
   const sizeOk = $derived([w, h].every((v) => Number.isInteger(v) && v >= 1 && v <= MAX_SIDE));
 
+  // A drawing: its page.
+  const PAGES: [string, number, number][] = [
+    ['Landscape', 1600, 1000],
+    ['Portrait', 1000, 1600],
+    ['Square', 1200, 1200],
+  ];
+  const page0 = untrack(() => prefs.value?.ldw.page ?? [1600, 1000]);
+  let pw = $state(page0[0]);
+  let ph = $state(page0[1]);
+  const pageOk = $derived([pw, ph].every((v) => Number.isInteger(v) && v >= MIN_PAGE && v <= MAX_PAGE));
+
   onMount(() => {
     input?.focus();
     input?.select();
@@ -46,6 +58,11 @@
   function submit(e: SubmitEvent) {
     e.preventDefault();
     if (!name.trim()) return;
+    if (kind === 'ldw') {
+      if (!pageOk) return;
+      prefs.set('ldw.page', [pw, ph]);
+      return oncreate(name, { w: pw, h: ph });
+    }
     if (kind !== 'lpx') return oncreate(name);
     if (!sizeOk) return;
     prefs.set('lpx.defaultSize', [w, h]);
@@ -54,7 +71,7 @@
   }
 </script>
 
-<Dialog title="New {info.label.toLowerCase()}" {onclose} width={kind === 'lpx' ? 460 : 420}>
+<Dialog title="New {info.label.toLowerCase()}" {onclose} width={kind === 'lin' ? 420 : 480}>
   <form id="new-doc" onsubmit={submit}>
     <label>
       <span>Name</span>
@@ -89,11 +106,27 @@
       </div>
     {/if}
 
+    {#if kind === 'ldw'}
+      <div class="field">
+        <span>Page</span>
+        <div class="sizes">
+          <div class="seg" role="group" aria-label="Page shapes">
+            {#each PAGES as [label, a, b] (label)}
+              <button type="button" aria-pressed={pw === a && ph === b} onclick={() => ((pw = a), (ph = b))}>{label}</button>
+            {/each}
+          </div>
+          <input class="input num" type="number" min={MIN_PAGE} max={MAX_PAGE} bind:value={pw} aria-label="Page width" />
+          <span class="x">×</span>
+          <input class="input num" type="number" min={MIN_PAGE} max={MAX_PAGE} bind:value={ph} aria-label="Page height" />
+        </div>
+      </div>
+    {/if}
+
     <p class="where">Goes in <strong>{where}</strong> as a <code>{info.ext}</code></p>
   </form>
   {#snippet actions()}
     <button class="btn" type="button" onclick={onclose}>Cancel</button>
-    <button class="btn primary" type="submit" form="new-doc" disabled={!name.trim() || (kind === 'lpx' && !sizeOk)}>Create</button>
+    <button class="btn primary" type="submit" form="new-doc" disabled={!name.trim() || (kind === 'lpx' && !sizeOk) || (kind === 'ldw' && !pageOk)}>Create</button>
   {/snippet}
 </Dialog>
 

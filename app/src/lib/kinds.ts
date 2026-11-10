@@ -9,6 +9,9 @@ import { thumbnail as linThumbnail } from './lin/draw';
 import { parseLpx, serializeLpx } from './lpx/format';
 import { blankPix, presetById } from './lpx/model';
 import { thumbnailLpx } from './lpx/render';
+import { thumbnailLdw } from './ldw/draw';
+import { parseLdw, serializeLdw } from './ldw/format';
+import { blankDrawing } from './ldw/model';
 import { parseLin, serializeLin } from './lin/format';
 import { blankDoc } from './lin/model';
 import type { Kind } from './types';
@@ -87,10 +90,15 @@ export const KINDS: readonly KindInfo[] = [
     plural: 'Drawings',
     blurb: 'Pen strokes on a page',
     icon: PenLine,
-    blank: null,
-    check: null,
-    thumbnail: async () => null,
-    comingIn: 'M5',
+    blank: (o) => serializeLdw(blankDrawing(o?.w, o?.h)),
+    check: (text) => void parseLdw(text),
+    thumbnail: async (text) => {
+      try {
+        return await thumbnailLdw(parseLdw(text), THUMB_SIDE);
+      } catch {
+        return null;
+      }
+    },
   },
 ];
 

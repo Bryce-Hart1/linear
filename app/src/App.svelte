@@ -10,6 +10,7 @@
   import KeyTest from './components/dev/KeyTest.svelte';
   import LinEditor from './components/editors/LinEditor.svelte';
   import PixelEditor from './components/editors/PixelEditor.svelte';
+  import DrawEditor from './components/editors/DrawEditor.svelte';
   import DocView from './components/shell/DocView.svelte';
   import Library from './components/shell/Library.svelte';
   import NewDialog from './components/shell/NewDialog.svelte';
@@ -180,6 +181,8 @@
             <LinEditor {opened} {fresh} onclose={close} />
           {:else if opened.meta.kind === 'lpx'}
             <PixelEditor {opened} {fresh} onclose={close} />
+          {:else if opened.meta.kind === 'ldw'}
+            <DrawEditor {opened} {fresh} onclose={close} />
           {:else}
             <DocView {opened} onclose={close} />
           {/if}

@@ -7,6 +7,7 @@ import { serializeLin } from './lin/format';
 import { blankDoc } from './lin/model';
 import { SAMPLE_DIAGRAM } from './lin/sample';
 import { sampleBricks, sampleHeart } from './lpx/sample';
+import { sampleSketch } from './ldw/sample';
 import type { DocMeta, Draft, Folder, Import, Kind, NewDoc, Opened, Query, Saved, VersionMeta } from './types';
 
 const MAX_NAME = 120;
@@ -47,8 +48,6 @@ export function freeName(taken: readonly string[], wanted: string): string {
 const SAMPLE_FLOW = serializeLin(SAMPLE_DIAGRAM);
 
 const BLANK_LIN = serializeLin(blankDoc());
-// A stand-in until drawings exist (M5); only the library looks at it.
-const SAMPLE_LDW = '{"ldw":1,"w":1600,"h":1000,"bg":"#ffffff","next":1,"items":[]}\n';
 
 export class MockLibrary {
   private docs: DocMeta[] = [];
@@ -68,7 +67,7 @@ export class MockLibrary {
     this.createDocument({ name: 'Login sequence', kind: 'lin', folder: null, content: BLANK_LIN });
     this.createDocument({ name: 'Heart', kind: 'lpx', folder: sprites.id, content: sampleHeart() });
     this.createDocument({ name: 'Bricks', kind: 'lpx', folder: null, content: sampleBricks() });
-    this.createDocument({ name: 'Napkin sketch', kind: 'ldw', folder: null, content: SAMPLE_LDW });
+    this.createDocument({ name: 'Napkin sketch', kind: 'ldw', folder: null, content: sampleSketch() });
     const old = this.createDocument({ name: 'Old ideas', kind: 'lin', folder: null, content: BLANK_LIN });
     this.setPinned(flow.id, true);
     this.openDocument(flow.id);
