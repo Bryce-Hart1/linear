@@ -1,53 +1,91 @@
 <!--
-  The window: sidebar and library now; the editors open here as they're built.
-  The shell is the last stop for menu commands (menu-router.ts): it handles
-  the ones that make sense with no document open, such as theme, sidebar,
-  settings and new documents.
+  The window: the sidebar, and either the library or an open document. The
+  shell is the last stop for menu commands (menu-router.ts): it handles those
+  that make sense here, such as new documents, import, the selected
+  document's Duplicate/Delete/Export, theme, sidebar and settings.
 -->
 <script lang="ts">
-  import { LayoutGrid, List, PanelLeft } from '@lucide/svelte';
+  import { FileDown, LayoutGrid, List, PanelLeft } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import KeyTest from './components/dev/KeyTest.svelte';
+  import DocView from './components/shell/DocView.svelte';
   import Library from './components/shell/Library.svelte';
+  import NewDialog from './components/shell/NewDialog.svelte';
   import Settings from './components/shell/Settings.svelte';
   import Sidebar from './components/shell/Sidebar.svelte';
   import { api } from './lib/api';
+  import { dragging } from './lib/drag';
+  import { folderPath } from './lib/folder-tree';
   import { kindInfo } from './lib/kinds';
+  import { library } from './lib/library.svelte';
   import type { MenuId } from './lib/menu-ids';
   import { onMenu, route } from './lib/menu-router';
+  import { notes } from './lib/notes.svelte';
   import { prefs } from './lib/prefs.svelte';
   import { applyTheme } from './lib/theme';
-  import { errorMessage, type Kind } from './lib/types';
+  import { errorMessage, type DocMeta, type Kind, type Opened } from './lib/types';
 
   const DEV = import.meta.env.DEV;
 
   let settingsOpen = $state(false);
   let keyTestOpen = $state(false);
-  let note = $state<string | null>(null);
+  let making = $state<Kind | null>(null);
+  let opened = $state<Opened | null>(null);
+  let dropping = $state(false);
   let loadError = $state<string | null>(null);
-  let noteTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
     if (prefs.value) applyTheme(prefs.value.theme);
   });
 
-  // A refused preference shows in the status line like any other note.
+  // A refused preference shows in the notes line like anything else.
   $effect(() => {
-    if (prefs.error) say(prefs.error.message);
+    if (prefs.error) notes.say(prefs.error.message);
   });
 
-  function say(text: string) {
-    note = text;
-    clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => (note = null), 3500);
-  }
+  // List again whenever where we are, the search, or the filter and sort change.
+  $effect(() => {
+    const p = prefs.value;
+    void library.place;
+    void p?.library.kind;
+    void p?.library.sort;
+    const typing = library.search;
+    if (!p) return;
+    const t = setTimeout(() => library.refresh(), typing ? 120 : 0);
+    return () => clearTimeout(t);
+  });
+
+  const selected = $derived(library.docs.find((d) => d.id === library.selected));
 
   function newDocument(kind: Kind) {
-    say(`${kindInfo(kind).label}s can be made once the library is in (milestone M1).`);
+    const info = kindInfo(kind);
+    if (!info.blank) return notes.say(`${info.plural} arrive in ${info.comingIn}.`);
+    making = kind;
+  }
+
+  async function create(kind: Kind, name: string) {
+    making = null;
+    const doc = await library.create(kind, name);
+    if (doc) open(doc);
+  }
+
+  async function open(doc: DocMeta) {
+    try {
+      opened = await api.openDocument(doc.id);
+      library.selected = doc.id;
+    } catch (e) {
+      notes.say(errorMessage(e));
+    }
+  }
+
+  function close() {
+    opened = null;
+    library.refresh();
   }
 
   function shell(id: MenuId): boolean {
     const p = prefs.value;
+    const doc = opened?.meta ?? selected;
     switch (id) {
       case 'settings':
         settingsOpen = true;
@@ -68,24 +106,55 @@
       case 'new.ldw':
         newDocument(id.slice('new.'.length) as Kind);
         return true;
+      case 'import':
+        library.import();
+        return true;
+      case 'export':
+        if (doc) library.exportFile(doc);
+        else notes.say('Select a document to export it');
+        return true;
+      case 'close':
+        if (opened) close();
+        return true;
+      case 'duplicate':
+        if (!opened && selected && !selected.trashedAt) library.duplicate(selected);
+        return true;
+      case 'delete':
+        if (!opened && selected && !selected.trashedAt) library.trash(selected);
+        return true;
       case 'help.shortcuts':
         if (DEV) keyTestOpen = true;
-        else say('The shortcut sheet comes with the editors.');
+        else notes.say('The shortcut sheet comes with the editors.');
         return true;
     }
     return false;
   }
 
   onMount(() => {
-    prefs.load().catch((e) => (loadError = errorMessage(e)));
+    prefs
+      .load()
+      .then(() => library.refreshFolders())
+      .catch((e) => (loadError = errorMessage(e)));
     const off = onMenu(shell);
-    let unlisten: (() => void) | undefined;
+    const unlisten: (() => void)[] = [];
     let gone = false;
-    api.onMenu((id) => route(id)).then((u) => (gone ? u() : (unlisten = u)));
+    const keep = (u: () => void) => (gone ? u() : unlisten.push(u));
+    api.onMenu((id) => route(id)).then(keep);
+    api
+      .onDragDrop((e) => {
+        if (dragging.active) return;
+        if (e.type === 'over') dropping = true;
+        else if (e.type === 'leave') dropping = false;
+        else {
+          dropping = false;
+          if (e.paths.length) library.importPaths(e.paths);
+        }
+      })
+      .then(keep);
     return () => {
       gone = true;
       off();
-      unlisten?.();
+      unlisten.forEach((u) => u());
     };
   });
 </script>
@@ -97,26 +166,38 @@
       <Sidebar onnew={newDocument} onsettings={() => (settingsOpen = true)} onkeytest={DEV ? () => (keyTestOpen = true) : undefined} />
     {/if}
     <main>
-      <header class="topbar" data-tauri-drag-region>
-        <button
-          class="icon-btn"
-          title={p.ui.sidebarOpen ? 'Hide sidebar (⌘\\)' : 'Show sidebar (⌘\\)'}
-          aria-pressed={p.ui.sidebarOpen}
-          onclick={() => prefs.set('ui.sidebarOpen', !p.ui.sidebarOpen)}
-        >
-          <PanelLeft size={17} />
-        </button>
-        <h1 data-tauri-drag-region>All documents</h1>
-        <div class="seg views" role="group" aria-label="Show as">
-          <button title="Grid" aria-pressed={p.library.view === 'grid'} onclick={() => prefs.set('library.view', 'grid')}>
-            <LayoutGrid size={15} />
+      {#if opened}
+        {#key opened.meta.id}
+          <DocView {opened} onclose={close} />
+        {/key}
+      {:else}
+        <header class="topbar" data-tauri-drag-region>
+          <button
+            class="icon-btn"
+            title={p.ui.sidebarOpen ? 'Hide sidebar (⌘\\)' : 'Show sidebar (⌘\\)'}
+            aria-pressed={p.ui.sidebarOpen}
+            onclick={() => prefs.set('ui.sidebarOpen', !p.ui.sidebarOpen)}
+          >
+            <PanelLeft size={17} />
           </button>
-          <button title="List" aria-pressed={p.library.view === 'list'} onclick={() => prefs.set('library.view', 'list')}>
-            <List size={15} />
-          </button>
-        </div>
-      </header>
-      <Library onnew={newDocument} />
+          <h1 data-tauri-drag-region>
+            {library.title}
+            {#if library.place.view === 'folder'}
+              {@const parent = library.folders.find((f) => f.id === library.place.folder)?.parentId ?? null}
+              {#if parent !== null}<span class="path">in {folderPath(library.folders, parent)}</span>{/if}
+            {/if}
+          </h1>
+          <div class="seg views" role="group" aria-label="Show as">
+            <button title="Grid" aria-pressed={p.library.view === 'grid'} onclick={() => prefs.set('library.view', 'grid')}>
+              <LayoutGrid size={15} />
+            </button>
+            <button title="List" aria-pressed={p.library.view === 'list'} onclick={() => prefs.set('library.view', 'list')}>
+              <List size={15} />
+            </button>
+          </div>
+        </header>
+        <Library onopen={open} onnew={newDocument} />
+      {/if}
     </main>
   </div>
 {:else if loadError}
@@ -126,14 +207,43 @@
   </div>
 {/if}
 
+{#if making}
+  {@const kind = making}
+  <NewDialog
+    {kind}
+    where={library.newFolder === null ? 'the top level' : folderPath(library.folders, library.newFolder)}
+    onclose={() => (making = null)}
+    oncreate={(name) => create(kind, name)}
+  />
+{/if}
 {#if settingsOpen}
   <Settings onclose={() => (settingsOpen = false)} />
 {/if}
 {#if keyTestOpen}
   <KeyTest onclose={() => (keyTestOpen = false)} />
 {/if}
-{#if note}
-  <div class="note" role="status">{note}</div>
+{#if dropping}
+  <div class="drop">
+    <div class="drop-card">
+      <FileDown size={28} />
+      <strong>Drop to import</strong>
+      <span>.lin files go in {library.newFolder === null ? 'the top level' : folderPath(library.folders, library.newFolder)}</span>
+    </div>
+  </div>
+{/if}
+{#if notes.current}
+  {@const n = notes.current}
+  <div class="note" role="status">
+    <span>{n.text}</span>
+    {#if n.action}
+      <button
+        onclick={() => {
+          n.action?.run();
+          notes.dismiss();
+        }}>{n.action.label}</button
+      >
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -165,9 +275,18 @@
   }
   h1 {
     flex: 1;
+    min-width: 0;
     margin: 0;
+    overflow: hidden;
     font-size: 14px;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .path {
+    margin-left: 6px;
+    color: var(--dim);
+    font-weight: 400;
   }
   .views button {
     display: grid;
@@ -176,15 +295,55 @@
   }
   .note {
     position: fixed;
+    z-index: 200;
     left: 50%;
     bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
     transform: translateX(-50%);
-    max-width: min(560px, calc(100vw - 32px));
+    max-width: min(620px, calc(100vw - 32px));
     padding: 9px 14px;
     border-radius: var(--radius);
     background: var(--ink);
     color: var(--bg);
     box-shadow: var(--shadow);
+  }
+  .note button {
+    flex: none;
+    padding: 2px 6px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: color-mix(in srgb, var(--accent), var(--bg) 35%);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .note button:hover {
+    background: color-mix(in srgb, var(--bg) 14%, transparent);
+  }
+  .drop {
+    position: fixed;
+    z-index: 150;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--bg) 70%, transparent);
+    pointer-events: none;
+  }
+  .drop-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 28px 40px;
+    border: 2px dashed var(--accent);
+    border-radius: 16px;
+    background: var(--surface);
+    color: var(--accent);
+  }
+  .drop-card span {
+    color: var(--dim);
   }
   .fatal {
     padding: 64px 32px;

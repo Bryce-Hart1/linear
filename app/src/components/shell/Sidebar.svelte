@@ -1,12 +1,19 @@
 <!--
-  The library's sidebar: New, search, the library's views, folders, and
-  settings. The views and folders fill in with the library itself (M1); for
-  now they show where things will be.
+  The library's sidebar: New, search, the library's views, the folder tree,
+  and settings. Folders take documents dragged onto them, and right-click
+  for New folder, Rename, Move and Delete.
 -->
 <script lang="ts">
-  import { ChevronDown, Clock, Files, FolderPlus, Keyboard, Pin, Plus, Search, Settings, Trash } from '@lucide/svelte';
+  import { ChevronDown, Clock, Files, Folder as FolderIcon, FolderInput, FolderPlus, Keyboard, Pencil, Pin, Plus, Search, Settings, Trash } from '@lucide/svelte';
+  import { folderTree } from '../../lib/folder-tree';
   import { KINDS } from '../../lib/kinds';
-  import type { Kind } from '../../lib/types';
+  import { library } from '../../lib/library.svelte';
+  import type { Folder, Kind, View } from '../../lib/types';
+  import ContextMenu from '../ui/ContextMenu.svelte';
+  import InlineEdit from '../ui/InlineEdit.svelte';
+  import type { MenuItem } from '../ui/menu';
+  import Confirm from './Confirm.svelte';
+  import FolderPicker from './FolderPicker.svelte';
 
   let {
     onnew,
@@ -14,29 +21,90 @@
     onkeytest,
   }: { onnew: (kind: Kind) => void; onsettings: () => void; onkeytest?: () => void } = $props();
 
-  const VIEWS = [
-    { id: 'recent', label: 'Recent', icon: Clock },
-    { id: 'pinned', label: 'Pinned', icon: Pin },
-    { id: 'all', label: 'All documents', icon: Files },
-    { id: 'trash', label: 'Trash', icon: Trash },
+  const VIEWS: { view: Exclude<View, 'folder'>; label: string; icon: typeof Clock }[] = [
+    { view: 'recent', label: 'Recent', icon: Clock },
+    { view: 'pinned', label: 'Pinned', icon: Pin },
+    { view: 'all', label: 'All documents', icon: Files },
+    { view: 'trash', label: 'Trash', icon: Trash },
   ];
 
-  let current = $state('all');
-  let query = $state('');
-  let menuOpen = $state(false);
+  const rows = $derived(folderTree(library.folders));
+
+  let newOpen = $state(false);
   let newWrap: HTMLElement | undefined = $state();
+  let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  /** A folder being made: inside which folder. */
+  let making = $state<{ parent: number | null } | null>(null);
+  let renaming = $state<number | null>(null);
+  let moving = $state<Folder | null>(null);
+  let deleting = $state<Folder | null>(null);
+  let dropOn = $state<number | null>(null);
 
   function pick(kind: Kind) {
-    menuOpen = false;
+    newOpen = false;
     onnew(kind);
   }
 
   function onpointerdown(e: PointerEvent) {
-    if (menuOpen && newWrap && !newWrap.contains(e.target as Node)) menuOpen = false;
+    if (newOpen && newWrap && !newWrap.contains(e.target as Node)) newOpen = false;
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (menuOpen && e.key === 'Escape') menuOpen = false;
+    if (newOpen && e.key === 'Escape') newOpen = false;
+  }
+
+  function subtree(id: number): number[] {
+    const out = [id];
+    for (let i = 0; i < out.length; i++) for (const f of library.folders) if (f.parentId === out[i]) out.push(f.id);
+    return out;
+  }
+
+  function folderMenu(e: MouseEvent, f: Folder) {
+    e.preventDefault();
+    menu = {
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { label: 'New folder inside', icon: FolderPlus, run: () => (making = { parent: f.id }) },
+        { label: 'Rename', icon: Pencil, run: () => (renaming = f.id) },
+        { label: 'Move to…', icon: FolderInput, run: () => (moving = f) },
+        { separator: true },
+        { label: 'Delete folder…', icon: Trash, danger: true, run: () => (deleting = f) },
+      ],
+    };
+  }
+
+  async function make(name: string): Promise<boolean> {
+    const parent = making?.parent ?? null;
+    const f = await library.createFolder(parent, name);
+    if (!f) return false;
+    making = null;
+    library.go({ view: 'folder', folder: f.id });
+    return true;
+  }
+
+  async function rename(f: Folder, name: string): Promise<boolean> {
+    const ok = await library.renameFolder(f, name);
+    if (ok) renaming = null;
+    return ok;
+  }
+
+  const DOC_TYPE = 'application/x-linear-doc';
+
+  function ondragover(e: DragEvent, folder: number) {
+    if (!e.dataTransfer?.types.includes(DOC_TYPE)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    dropOn = folder;
+  }
+
+  function ondrop(e: DragEvent, folder: number) {
+    dropOn = null;
+    const id = Number(e.dataTransfer?.getData(DOC_TYPE));
+    const doc = library.docs.find((d) => d.id === id);
+    if (!doc) return;
+    e.preventDefault();
+    library.moveTo(doc, folder);
   }
 </script>
 
@@ -46,19 +114,19 @@
   <div class="lights" data-tauri-drag-region></div>
 
   <div class="new" bind:this={newWrap}>
-    <button class="btn primary wide" aria-haspopup="menu" aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>
+    <button class="btn primary wide" aria-haspopup="menu" aria-expanded={newOpen} onclick={() => (newOpen = !newOpen)}>
       <Plus size={16} strokeWidth={2.4} />
       <span>New</span>
       <ChevronDown size={14} />
     </button>
-    {#if menuOpen}
+    {#if newOpen}
       <div class="menu" role="menu">
         {#each KINDS as k (k.kind)}
-          <button class="menu-item" role="menuitem" onclick={() => pick(k.kind)}>
+          <button class="menu-item" role="menuitem" disabled={!k.blank} onclick={() => pick(k.kind)}>
             <span class="glyph" style:color={k.tint}><k.icon size={18} /></span>
             <span class="text">
               <span class="label">{k.label} <span class="ext">{k.ext}</span></span>
-              <span class="blurb">{k.blurb}</span>
+              <span class="blurb">{k.blank ? k.blurb : `Coming in ${k.comingIn}`}</span>
             </span>
           </button>
         {/each}
@@ -68,12 +136,16 @@
 
   <label class="search">
     <Search size={14} />
-    <input type="search" placeholder="Search" bind:value={query} spellcheck="false" />
+    <input type="search" placeholder="Search" bind:value={library.search} spellcheck="false" />
   </label>
 
   <nav>
-    {#each VIEWS as v (v.id)}
-      <button class="row" aria-current={current === v.id ? 'page' : undefined} onclick={() => (current = v.id)}>
+    {#each VIEWS as v (v.view)}
+      <button
+        class="row"
+        aria-current={library.place.view === v.view ? 'page' : undefined}
+        onclick={() => library.go({ view: v.view, folder: null })}
+      >
         <v.icon size={16} />
         <span>{v.label}</span>
       </button>
@@ -82,9 +154,45 @@
 
   <div class="section">
     <span>Folders</span>
-    <button class="icon-btn" title="New folder" disabled><FolderPlus size={15} /></button>
+    <button class="icon-btn" title="New folder" onclick={() => (making = { parent: null })}><FolderPlus size={15} /></button>
   </div>
-  <p class="none">No folders yet</p>
+
+  <div class="folders">
+    {#if making && making.parent === null}
+      <div class="row editing"><FolderIcon size={16} /><InlineEdit value="New folder" label="Folder name" oncommit={make} oncancel={() => (making = null)} /></div>
+    {/if}
+    {#each rows as r (r.folder.id)}
+      {#if renaming === r.folder.id}
+        <div class="row editing" style:padding-left="{8 + r.depth * 14}px">
+          <FolderIcon size={16} />
+          <InlineEdit value={r.folder.name} label="Folder name" oncommit={(n) => rename(r.folder, n)} oncancel={() => (renaming = null)} />
+        </div>
+      {:else}
+        <button
+          class="row"
+          class:drop={dropOn === r.folder.id}
+          style:padding-left="{8 + r.depth * 14}px"
+          aria-current={library.place.view === 'folder' && library.place.folder === r.folder.id ? 'page' : undefined}
+          onclick={() => library.go({ view: 'folder', folder: r.folder.id })}
+          ondblclick={() => (renaming = r.folder.id)}
+          oncontextmenu={(e) => folderMenu(e, r.folder)}
+          ondragover={(e) => ondragover(e, r.folder.id)}
+          ondragleave={() => (dropOn = null)}
+          ondrop={(e) => ondrop(e, r.folder.id)}
+        >
+          <FolderIcon size={16} />
+          <span>{r.folder.name}</span>
+        </button>
+      {/if}
+      {#if making && making.parent === r.folder.id}
+        <div class="row editing" style:padding-left="{8 + (r.depth + 1) * 14}px">
+          <FolderIcon size={16} /><InlineEdit value="New folder" label="Folder name" oncommit={make} oncancel={() => (making = null)} />
+        </div>
+      {/if}
+    {:else}
+      {#if !making}<p class="none">No folders yet</p>{/if}
+    {/each}
+  </div>
 
   <div class="grow" data-tauri-drag-region></div>
 
@@ -95,6 +203,35 @@
     <button class="row" onclick={onsettings}><Settings size={16} /><span>Settings</span></button>
   </footer>
 </aside>
+
+{#if menu}
+  <ContextMenu {...menu} onclose={() => (menu = null)} />
+{/if}
+{#if moving}
+  {@const f = moving}
+  <FolderPicker
+    title="Move “{f.name}” to"
+    folders={library.folders}
+    current={f.parentId}
+    exclude={subtree(f.id)}
+    onclose={() => (moving = null)}
+    onpick={(to) => {
+      library.moveFolder(f, to);
+      moving = null;
+    }}
+  />
+{/if}
+{#if deleting}
+  {@const f = deleting}
+  <Confirm
+    title="Delete “{f.name}”?"
+    message="The folder and the folders inside it are deleted. Their documents aren't: they move up a level."
+    confirm="Delete folder"
+    danger
+    onclose={() => (deleting = null)}
+    onconfirm={() => library.deleteFolder(f)}
+  />
+{/if}
 
 <style>
   .sidebar {
@@ -146,10 +283,14 @@
     text-align: left;
     cursor: pointer;
   }
-  .menu-item:hover,
+  .menu-item:hover:not(:disabled),
   .menu-item:focus-visible {
     background: var(--hover);
     outline: none;
+  }
+  .menu-item:disabled {
+    cursor: default;
+    opacity: 0.55;
   }
   .glyph {
     display: grid;
@@ -197,16 +338,22 @@
     background: transparent;
   }
   nav,
-  footer {
+  footer,
+  .folders {
     display: flex;
     flex-direction: column;
     gap: 1px;
+  }
+  .folders {
+    min-height: 0;
+    overflow: auto;
   }
   .row {
     display: flex;
     align-items: center;
     gap: 9px;
     height: 30px;
+    flex: none;
     padding: 0 8px;
     border: 0;
     border-radius: var(--radius);
@@ -214,6 +361,11 @@
     color: var(--dim);
     text-align: left;
     cursor: pointer;
+  }
+  .row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .row:hover {
     background: var(--hover);
@@ -223,6 +375,18 @@
     background: var(--press);
     color: var(--ink);
     font-weight: 500;
+  }
+  .row.drop {
+    background: var(--accent-soft);
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+  }
+  .row.editing {
+    cursor: default;
+    color: var(--ink);
+  }
+  .row.editing:hover {
+    background: transparent;
   }
   .section {
     display: flex;
@@ -242,5 +406,6 @@
   }
   .grow {
     flex: 1;
+    min-height: 12px;
   }
 </style>

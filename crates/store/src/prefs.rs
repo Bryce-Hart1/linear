@@ -268,7 +268,7 @@ pub fn set(conn: &mut SqliteConnection, key: &str, value: Value) -> Result<Prefs
     if !valid_key(key) {
         return Err(Error::Invalid(format!("no preference called {key:?}")));
     }
-    conn.immediate_transaction(|conn| {
+    crate::write(conn, |conn| {
         let mut tree = serde_json::to_value(get(conn)?).expect("prefs always serialise");
         let path: Vec<&str> = key.split('.').collect();
         if !set_path(&mut tree, &path, value.clone()) {

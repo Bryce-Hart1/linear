@@ -1,11 +1,12 @@
-// A stand-in backend for working on the UI in a plain browser: preferences in
-// memory (lost on reload), checked roughly the way linear-store checks them,
-// and the menu bar imitated from the keyboard. The app itself never uses this
-// (see api.ts).
+// A stand-in backend for working on the UI in a plain browser: preferences
+// and the library in memory (lost on reload), checked roughly the way
+// linear-store checks them (mock-library.ts), and the menu bar imitated from
+// the keyboard. The app itself never uses this (see api.ts).
 
 import type { Backend } from './api';
 import { menuIdFor } from './menu-ids';
-import type { Prefs } from './types';
+import { MockLibrary, importFromFile } from './mock-library';
+import type { Import, Prefs } from './types';
 
 /** The same defaults as linear-store's `Prefs::default()`. */
 export const DEFAULT_PREFS: Prefs = {
@@ -88,20 +89,94 @@ function getIn(prefs: Prefs, key: string): unknown {
   return key.split('.').reduce<unknown>((n, p) => (n as Record<string, unknown> | undefined)?.[p], prefs);
 }
 
-export function mockBackend(): Backend {
+/** Runs a mock call the way `invoke` would: async, and failing with a command error. */
+function call<T>(f: () => T): Promise<T> {
+  try {
+    return Promise.resolve(structuredClone(f()));
+  } catch (e) {
+    return Promise.reject(e);
+  }
+}
+
+export function mockBackend(seed = true): Backend {
   let prefs = clone(DEFAULT_PREFS);
+  const lib = new MockLibrary(seed);
+  // Files picked in the browser, by the fake path pickImports hands out.
+  const picked = new Map<string, File>();
   const mac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac');
   return {
     isApp: false,
     getPrefs: async () => clone(prefs),
     setPref: async (key, value) => {
       prefs = setIn(prefs, key, value);
+      lib.keep = prefs.versions.keep;
       return clone(prefs);
     },
     resetPref: async (key) => {
       prefs = setIn(prefs, key, clone(getIn(DEFAULT_PREFS, key)));
+      lib.keep = prefs.versions.keep;
       return clone(prefs);
     },
+
+    listDocuments: (q) => call(() => lib.listDocuments(q)),
+    listFolders: () => call(() => lib.listFolders()),
+    createFolder: (parent, name) => call(() => lib.createFolder(parent, name)),
+    renameFolder: (id, name) => call(() => lib.renameFolder(id, name)),
+    moveFolder: (id, parent) => call(() => lib.moveFolder(id, parent)),
+    deleteFolder: (id) => call(() => lib.deleteFolder(id)),
+
+    createDocument: (doc) => call(() => lib.createDocument(doc)),
+    openDocument: (id) => call(() => lib.openDocument(id)),
+    saveDocument: (id, content) => call(() => lib.saveDocument(id, content)),
+    documentContent: (id) => call(() => lib.documentContent(id)),
+    renameDocument: (id, name) => call(() => lib.renameDocument(id, name)),
+    moveDocument: (id, folder) => call(() => lib.moveDocument(id, folder)),
+    duplicateDocument: (id) => call(() => lib.duplicateDocument(id)),
+    setPinned: (id, pinned) => call(() => lib.setPinned(id, pinned)),
+    trashDocument: (id) => call(() => lib.trashDocument(id)),
+    restoreDocument: (id) => call(() => lib.restoreDocument(id)),
+    deleteDocument: (id) => call(() => lib.deleteDocument(id)),
+    emptyTrash: () => call(() => lib.emptyTrash()),
+
+    listVersions: (id) => call(() => lib.listVersions(id)),
+    readVersion: (v) => call(() => lib.readVersion(v)),
+    restoreVersion: (v) => call(() => lib.restoreVersion(v)),
+    putDraft: (id, base, content) => call(() => lib.putDraft(id, base, content)),
+    discardDraft: (id) => call(() => lib.discardDraft(id)),
+
+    pickImports: () =>
+      new Promise((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.multiple = true;
+        input.accept = '.lin,.lpx,.ldw';
+        input.onchange = () => {
+          const paths = [...(input.files ?? [])].map((f) => {
+            const path = `mock:/${picked.size}/${f.name}`;
+            picked.set(path, f);
+            return path;
+          });
+          resolve(paths.length ? paths : null);
+        };
+        input.oncancel = () => resolve(null);
+        input.click();
+      }),
+    readImport: async (path): Promise<Import> => {
+      const file = picked.get(path);
+      if (!file) throw { code: 'invalid', message: `${path}: not found` };
+      return importFromFile(file);
+    },
+    pickSavePath: async (name) => name.split('/').pop() ?? name,
+    writeExport: async (path, bytes) => {
+      // A browser can't write a path; download the file instead.
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes as BlobPart]));
+      a.download = path;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    },
+    thumbUrl: () => null,
+
     setWindowTheme: async () => {},
     onMenu: async (cb) => {
       // The app's menu bar takes these keys before the page sees them; here the page takes them first.
@@ -115,5 +190,6 @@ export function mockBackend(): Backend {
       window.addEventListener('keydown', onKey, true);
       return () => window.removeEventListener('keydown', onKey, true);
     },
+    onDragDrop: async () => () => {},
   };
 }

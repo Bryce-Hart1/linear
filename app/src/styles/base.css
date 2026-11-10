@@ -117,3 +117,29 @@ button {
   color: var(--ink);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
+
+.btn.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* A one-line text field. */
+.input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--faint);
+  border-radius: var(--radius);
+  background: var(--bg);
+  outline: none;
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

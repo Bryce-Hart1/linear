@@ -10,14 +10,16 @@ use std::path::Path;
 
 use diesel::connection::SimpleConnection;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool, PooledConnection};
-use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use serde::{Deserialize, Serialize};
 
+pub mod docs;
 mod error;
+pub mod folders;
 pub mod prefs;
 pub mod schema;
 
+pub use diesel::sqlite::SqliteConnection;
 pub use error::{Error, Result};
 pub use prefs::Prefs;
 
@@ -107,6 +109,11 @@ impl Store {
         self.pool.get().map_err(|e| Error::Open(e.to_string()))
     }
 
+    /// Runs `f` with a connection from the pool.
+    pub fn with<T>(&self, f: impl FnOnce(&mut SqliteConnection) -> Result<T>) -> Result<T> {
+        f(&mut *self.conn()?)
+    }
+
     // ── Preferences ────────────────────────────────────────────────────
 
     pub fn prefs(&self) -> Result<Prefs> {
@@ -120,6 +127,15 @@ impl Store {
     pub fn reset_pref(&self, key: &str) -> Result<Prefs> {
         prefs::reset(&mut *self.conn()?, key)
     }
+}
+
+/// Runs `f` in a transaction that writes. At the top it is an immediate one,
+/// taking the write lock up front so it can't fail halfway on a busy database;
+/// inside another it is a savepoint, so these functions can call each other.
+pub(crate) fn write<T>(conn: &mut SqliteConnection, f: impl FnOnce(&mut SqliteConnection) -> Result<T>) -> Result<T> {
+    use diesel::connection::{AnsiTransactionManager, TransactionManager};
+    let nested = AnsiTransactionManager::transaction_manager_status_mut(conn).transaction_depth()?.is_some();
+    if nested { diesel::Connection::transaction(conn, f) } else { conn.immediate_transaction(f) }
 }
 
 /// Now, in unix milliseconds: how every time in the library is kept.

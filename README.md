@@ -9,9 +9,16 @@ An editor for three kinds of document:
 It is a Tauri app. The UI is Svelte, and the library (documents with their version history,
 drafts, folders, palettes and preferences) is kept in SQLite through Diesel.
 
-The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M0 (skeleton).** The window,
-the native menu, preferences kept in the library, light and dark themes, and the library's
-empty state are done. Documents arrive in M1.
+The plan is in [docs/PLAN.md](docs/PLAN.md). **Status: M1 (the library).** Done so far:
+
+- the window, the native menu, light and dark themes, and preferences kept in the library;
+- documents with version history, drafts, pinning and a Trash;
+- nested folders;
+- a grid or list of documents, with search, a kind filter and sorting;
+- importing `.lin` files (from the file picker or dropped from Finder) and exporting them as files.
+
+Diagrams can be made, opened and exported. Their editor arrives in M2; until then, opening one shows what the
+library holds for it. Pixel art (M4) and drawings (M5) follow.
 
 ## Layout
 
