@@ -7,7 +7,8 @@
 
 import { LABEL_EM, bounds, labelPoint, labelWidth, layoutIndexed, lineHeight, linePath, textBox, tipFrom, type Pt } from './geometry';
 import { ADVANCE, BOLD, FONT_PX, ITALIC, PALETTE, TINT, UNDERLINE, isLine, type Doc, type Line, type Shape, type Stroke } from './model';
-import { LIGHT, runsOf } from './draw';
+import { DARK, LIGHT, exportFrame, runsOf, type Theme } from './draw';
+import { GRID_INK, dotsAsSvg, type ExportLook } from '../export-look';
 import { stylesOf } from './text';
 
 const MARGIN = 32;
@@ -27,11 +28,11 @@ function dashAttr(ln: Stroke): string {
   return '';
 }
 
-function shapeSvg(s: Shape): string {
+function shapeSvg(s: Shape, t: Theme): string {
   const colour = PALETTE[s.c].fill;
   const plain = s.c === 0;
-  const fill = plain ? `fill="${LIGHT.paper}"` : `fill="${colour}" fill-opacity="${TINT}"`;
-  const stroke = `stroke="${plain ? LIGHT.ink : colour}" stroke-width="2" stroke-linejoin="round"${dashAttr(s.ln)}`;
+  const fill = plain ? `fill="${t.paper}"` : `fill="${colour}" fill-opacity="${TINT}"`;
+  const stroke = `stroke="${plain ? t.ink : colour}" stroke-width="2" stroke-linejoin="round"${dashAttr(s.ln)}`;
   const hw = s.w / 2;
   const hh = s.h / 2;
   let body: string;
@@ -69,7 +70,7 @@ function shapeSvg(s: Shape): string {
       });
     })
     .join('');
-  return `${body}<g font-family="${FONT}" font-size="${FONT_PX[s.f]}" text-anchor="middle" dominant-baseline="central" fill="${LIGHT.ink}">${text}</g>`;
+  return `${body}<g font-family="${FONT}" font-size="${FONT_PX[s.f]}" text-anchor="middle" dominant-baseline="central" fill="${t.ink}">${text}</g>`;
 }
 
 function headSvg(tip: Pt, from: Pt, colour: string): string {
@@ -78,10 +79,10 @@ function headSvg(tip: Pt, from: Pt, colour: string): string {
   return `<polygon points="${n(tip.x)},${n(tip.y)} ${p(-0.4)} ${p(0.4)}" fill="${colour}"/>`;
 }
 
-function lineSvg(doc: Doc, l: Line): string {
+function lineSvg(doc: Doc, l: Line, t: Theme): string {
   const path = linePath(doc, l);
   if (path.length < 2) return '';
-  const colour = l.c === 0 ? LIGHT.ink : PALETTE[l.c].fill;
+  const colour = l.c === 0 ? t.ink : PALETTE[l.c].fill;
   const points = path.map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
   let out = `<polyline points="${points}" fill="none" stroke="${colour}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"${dashAttr(l.ln)}/>`;
   if (l.head !== 'none') out += headSvg(path[path.length - 1], tipFrom(path, true), colour);
@@ -91,23 +92,25 @@ function lineSvg(doc: Doc, l: Line): string {
     const at = labelPoint(doc, l, path);
     const w = labelWidth(l);
     out +=
-      `<rect x="${n(at.x - w / 2 - 4)}" y="${n(at.y - (px * LABEL_EM) / 2)}" width="${n(w + 8)}" height="${n(px * LABEL_EM)}" fill="${LIGHT.paper}"/>` +
-      `<text x="${n(at.x)}" y="${n(at.y)}" font-family="${FONT}" font-size="${px}" text-anchor="middle" dominant-baseline="central" fill="${LIGHT.ink}">${xmlEscape(l.text)}</text>`;
+      `<rect x="${n(at.x - w / 2 - 4)}" y="${n(at.y - (px * LABEL_EM) / 2)}" width="${n(w + 8)}" height="${n(px * LABEL_EM)}" fill="${t.paper}"/>` +
+      `<text x="${n(at.x)}" y="${n(at.y)}" font-family="${FONT}" font-size="${px}" text-anchor="middle" dominant-baseline="central" fill="${t.ink}">${xmlEscape(l.text)}</text>`;
   }
   return out;
 }
 
-/** The diagram as an SVG document. Throws if the page is empty. */
-export function exportSvg(doc: Doc): string {
-  const box = bounds(doc);
-  if (!box) throw new Error('nothing to export: the page is empty');
-  const w = Math.max(MIN, box.w + 2 * MARGIN);
-  const h = Math.max(MIN, box.h + 2 * MARGIN);
-  const x = box.x - (w - box.w) / 2;
-  const y = box.y - (h - box.h) / 2;
-  const parts = doc.items.map((p) => (isLine(p) ? lineSvg(doc, p) : shapeSvg(p))).join('\n');
+/**
+ * The diagram as an SVG document, on a light page unless `look` says dark, with
+ * grid dots if it asks. Throws if the page is empty, except when `look` is
+ * given: then an empty diagram is the whole page.
+ */
+export function exportSvg(doc: Doc, look?: ExportLook): string {
+  const { x, y, w, h } = exportFrame(doc, look !== undefined);
+  const dark = look?.backdrop === 'dark';
+  const t = dark ? DARK : LIGHT;
+  const parts = doc.items.map((p) => (isLine(p) ? lineSvg(doc, p, t) : shapeSvg(p, t))).join('\n');
+  const grid = look?.grid ? dotsAsSvg({ x, y, w, h }, 10, 1, GRID_INK[dark ? 'dark' : 'light']) : '';
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${n(x)} ${n(y)} ${n(w)} ${n(h)}" width="${n(w)}" height="${n(h)}">\n` +
-    `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${LIGHT.paper}"/>\n${parts}\n</svg>\n`
+    `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" fill="${t.paper}"/>\n${grid}${parts}\n</svg>\n`
   );
 }

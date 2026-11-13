@@ -78,6 +78,8 @@
   import { errorMessage, type DocMeta, type Opened } from '../../lib/types';
   import ShortcutSheet from '../shell/ShortcutSheet.svelte';
   import ContextMenu from '../ui/ContextMenu.svelte';
+  import ExportDialog from '../shell/ExportDialog.svelte';
+  import { backdropOf, type ExportChoice, type ExportFormat } from '../../lib/export-look';
   import Dialog from '../ui/Dialog.svelte';
   import type { MenuItem } from '../ui/menu';
   import EditorFrame from './EditorFrame.svelte';
@@ -137,7 +139,6 @@
   let popup = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
   let saving = $state(false);
   let exporting = $state(false);
-  let exportButton: HTMLButtonElement | undefined = $state();
   let pageButton: HTMLButtonElement | undefined = $state();
 
   const dirty = $derived(serializeLdw(doc) !== saved);
@@ -450,7 +451,7 @@
   }
 
   function keysElsewhere(target: EventTarget | null): boolean {
-    return closing || sheet || sizing || popup !== null || !!document.querySelector('dialog[open]') || isTextField(target as HTMLInputElement | null);
+    return closing || sheet || sizing || exportOpen || popup !== null || !!document.querySelector('dialog[open]') || isTextField(target as HTMLInputElement | null);
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -732,39 +733,40 @@
     popup = { x: r ? r.right - 230 : 200, y: r ? r.bottom + 6 : 60, items };
   }
 
-  type Format = 'png' | 'jpeg' | 'svg' | 'ldw';
+  const FORMATS: ExportFormat[] = [
+    { id: 'png', ext: 'png', label: 'PNG', styled: true },
+    { id: 'jpeg', ext: 'jpg', label: 'JPEG', styled: true, clear: false },
+    { id: 'svg', ext: 'svg', label: 'SVG', styled: true },
+    { id: 'ldw', ext: 'ldw', label: '.ldw', styled: false },
+  ];
+
+  let exportOpen = $state(false);
 
   function openExport() {
-    popupAt(exportButton, [
-      { label: 'PNG image', hint: '.png', run: () => exportAs('png', false) },
-      { label: 'JPEG image', hint: '.jpg', run: () => exportAs('jpeg', false) },
-      { label: 'SVG drawing', hint: '.svg', run: () => exportAs('svg', false) },
-      { separator: true },
-      { label: 'PNG of the whole page', hint: '.png', run: () => exportAs('png', true) },
-      { label: 'SVG of the whole page', hint: '.svg', run: () => exportAs('svg', true) },
-      { separator: true },
-      { label: '.ldw file', hint: '.ldw', run: () => exportAs('ldw', true) },
-    ]);
+    exportOpen = true;
   }
 
-  async function exportAs(format: Format, whole: boolean) {
+  async function exportAs(choice: ExportChoice) {
+    exportOpen = false;
     if (exporting) return;
-    if (format !== 'ldw' && !whole && !doc.items.length) return say('nothing to export: the page is empty');
-    const ext = format === 'jpeg' ? 'jpg' : format;
+    const f = FORMATS.find((x) => x.id === choice.format)!;
+    // With nothing drawn there is no "drawn area", so the page is what's exported.
+    const whole = choice.whole || !doc.items.length;
     exporting = true;
     try {
       const dir = prefs.value?.export.lastDir;
-      const file = `${meta.name}.${ext}`;
-      let path = await api.pickSavePath(dir ? `${dir}/${file}` : file, ext);
+      const file = `${meta.name}.${f.ext}`;
+      let path = await api.pickSavePath(dir ? `${dir}/${file}` : file, f.ext);
       if (!path) return;
-      const want = format === 'jpeg' ? /\.jpe?g$/i : new RegExp(`\\.${ext}$`, 'i');
-      if (!want.test(path)) path += `.${ext}`;
+      const want = f.id === 'jpeg' ? /\.jpe?g$/i : new RegExp(`\\.${f.ext}$`, 'i');
+      if (!want.test(path)) path += `.${f.ext}`;
+      const look = { backdrop: choice.backdrop, grid: choice.grid };
       const bytes =
-        format === 'ldw'
+        f.id === 'ldw'
           ? new TextEncoder().encode(serializeLdw(doc))
-          : format === 'svg'
-            ? new TextEncoder().encode(exportSvg(doc, whole))
-            : await exportImage(doc, format, whole);
+          : f.id === 'svg'
+            ? new TextEncoder().encode(exportSvg(doc, whole, look))
+            : await exportImage(doc, f.id as 'png' | 'jpeg', whole, look);
       await api.writeExport(path, bytes);
       const slash = path.lastIndexOf('/');
       if (slash > 0) prefs.set('export.lastDir', path.slice(0, slash));
@@ -851,7 +853,7 @@
       <button class="icon-btn" title="Zoom in (+)" onclick={() => zoomAt(1.25)}><ZoomIn size={16} /></button>
       <span class="sep"></span>
       <button class="btn" bind:this={pageButton} onclick={openPage}><StickyNote size={15} /> Page</button>
-      <button class="btn" bind:this={exportButton} title="Export (⌘E)" onclick={openExport}><FileOutput size={15} /> Export</button>
+      <button class="btn" title="Export (⌘E)" onclick={openExport}><FileOutput size={15} /> Export</button>
       <button class="btn" class:primary={dirty} disabled={saving || !dirty} title="Save (⌘S)" onclick={() => save()}>
         {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
       </button>
@@ -976,6 +978,18 @@
     </div>
   {/snippet}
 </EditorFrame>
+
+{#if exportOpen}
+  <ExportDialog
+    kind="ldw"
+    formats={FORMATS}
+    fallback={{ backdrop: backdropOf(doc.bg) }}
+    area
+    clear
+    onclose={() => (exportOpen = false)}
+    onexport={exportAs}
+  />
+{/if}
 
 {#if popup}
   <ContextMenu {...popup} onclose={() => (popup = null)} />

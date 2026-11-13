@@ -41,6 +41,7 @@ import {
   type ShapeKind,
   type Stroke,
 } from './model';
+import { GRID_INK, type ExportLook } from '../export-look';
 import { LIGHT_LEN, pulseAt } from './pulse';
 import { span, stylesOf } from './text';
 import type { Guide } from './snap';
@@ -56,6 +57,9 @@ export interface Theme {
 
 /** A white page, for the JPEG: it looks the same whatever the app's theme is. */
 export const LIGHT: Theme = { paper: '#ffffff', ink: '#111111', dim: '#6f6f6f', faint: '#d6d6d2', accent: '#1f5fbf' };
+
+/** The dark page: white ink on black, like the app's dark mode. */
+export const DARK: Theme = { paper: '#000000', ink: '#ffffff', dim: '#9a9a9a', faint: '#444444', accent: '#ffffff' };
 
 /** The app's current colours (tui.css), so the canvas follows light and dark mode. */
 export function themeFromCss(): Theme {
@@ -90,6 +94,8 @@ export interface View {
   marquee?: Box | null;
   /** Show the snap grid. */
   grid?: boolean;
+  /** Where the grid dots go, when that isn't the page (an export's crop). */
+  gridBox?: { x: number; y: number; w: number; h: number };
   /** A shape or line tool is waiting for a click: where it would land. */
   ghost?: { tool: ShapeKind; at: Pt } | { tool: 'line'; from: Pt | null; to: Pt };
 }
@@ -393,7 +399,10 @@ function drawGrid(ctx: CanvasRenderingContext2D, doc: Doc, view: View) {
   if (GRID / px < 5) return;
   ctx.fillStyle = view.theme.faint;
   ctx.beginPath();
-  for (let x = GRID; x < doc.w; x += GRID) for (let y = GRID; y < doc.h; y += GRID) ctx.rect(x - px / 2, y - px / 2, px, px);
+  const b = view.gridBox ?? { x: 0, y: 0, w: doc.w, h: doc.h };
+  const x0 = view.gridBox ? Math.ceil(b.x / GRID) * GRID : GRID;
+  const y0 = view.gridBox ? Math.ceil(b.y / GRID) * GRID : GRID;
+  for (let x = x0; x < b.x + b.w; x += GRID) for (let y = y0; y < b.y + b.h; y += GRID) ctx.rect(x - px / 2, y - px / 2, px, px);
   ctx.fill();
 }
 
@@ -458,25 +467,39 @@ const EXPORT_SCALE = 2;
 const EXPORT_MARGIN = 32;
 const EXPORT_MIN = 120;
 
-/** The diagram drawn on white, cropped to what's on the page plus a margin, at `scale`. */
-function render(doc: Doc, scale: number, flatten = true): HTMLCanvasElement {
+/**
+ * What an export covers: what's on the page plus a margin. With nothing on
+ * the page it is the whole page, when `pageIfEmpty`, so an empty diagram can
+ * still be exported (with a grid, say); otherwise that's an error.
+ */
+export function exportFrame(doc: Doc, pageIfEmpty = false): { x: number; y: number; w: number; h: number } {
   const box = bounds(doc);
-  if (!box) throw new Error('nothing to export: the page is empty');
+  if (!box) {
+    if (!pageIfEmpty) throw new Error('nothing to export: the page is empty');
+    return { x: 0, y: 0, w: doc.w, h: doc.h };
+  }
   const w = Math.max(EXPORT_MIN, box.w + 2 * EXPORT_MARGIN);
   const h = Math.max(EXPORT_MIN, box.h + 2 * EXPORT_MARGIN);
+  // What's drawn sits in the middle of the crop.
+  return { x: box.x - (w - box.w) / 2, y: box.y - (h - box.h) / 2, w, h };
+}
+
+/** The diagram on a page, cropped by exportFrame, at `scale`. */
+function render(doc: Doc, scale: number, look?: ExportLook): HTMLCanvasElement {
+  const frame = exportFrame(doc, look !== undefined);
+  const theme = look?.backdrop === 'dark' ? DARK : LIGHT;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.ceil(w * scale));
-  canvas.height = Math.max(1, Math.ceil(h * scale));
+  canvas.width = Math.max(1, Math.ceil(frame.w * scale));
+  canvas.height = Math.max(1, Math.ceil(frame.h * scale));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error("can't draw here");
-  if (flatten) {
-    ctx.fillStyle = LIGHT.paper;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
+  ctx.fillStyle = theme.paper;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.scale(scale, scale);
-  // Centre what's drawn in the crop.
-  ctx.translate((w - box.w) / 2 - box.x, (h - box.h) / 2 - box.y);
-  drawDoc(ctx, doc, { t: 0, pulses: false, selected: [], theme: LIGHT });
+  ctx.translate(-frame.x, -frame.y);
+  // Grid dots one page pixel across, in the page's own grid colour.
+  const grid = look?.grid ? { ...theme, faint: GRID_INK[theme === DARK ? 'dark' : 'light'] } : theme;
+  drawDoc(ctx, doc, { t: 0, pulses: false, selected: [], theme: grid, grid: look?.grid, px: 1, gridBox: frame });
   return canvas;
 }
 
@@ -492,8 +515,8 @@ async function blobBytes(canvas: HTMLCanvasElement, type: string, quality?: numb
  * twice the size, on white, in the plain light colours. No selection, no
  * pulses. A JPEG, or a PNG with a white background.
  */
-export async function exportImage(doc: Doc, kind: 'jpeg' | 'png'): Promise<Uint8Array> {
-  const canvas = render(doc, EXPORT_SCALE);
+export async function exportImage(doc: Doc, kind: 'jpeg' | 'png', look?: ExportLook): Promise<Uint8Array> {
+  const canvas = render(doc, EXPORT_SCALE, look);
   return kind === 'png' ? blobBytes(canvas, 'image/png') : blobBytes(canvas, 'image/jpeg', 0.92);
 }
 

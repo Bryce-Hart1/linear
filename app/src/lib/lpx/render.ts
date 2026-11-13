@@ -2,6 +2,7 @@
 // editing, every visible layer flattened for export and thumbnails, and the
 // colour on top at a pixel for the eyedropper.
 
+import { GRID_INK, PAPER, type ExportLook } from '../export-look';
 import { rgba, type Pix } from './model';
 import type { Rect } from './raster';
 
@@ -87,9 +88,36 @@ async function pngOf(canvas: HTMLCanvasElement): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-/** A PNG of the image at a whole-number scale (1–32), transparent where the image is. */
-export function exportPng(pix: Pix, scale: number): Promise<Uint8Array> {
-  return pngOf(imageCanvas(pix, Math.max(1, Math.min(32, Math.round(scale)))));
+/** The smallest scale at which grid marks between pixels leave the pixels readable. */
+export const MIN_GRID_SCALE = 4;
+
+/**
+ * A PNG of the image at a whole-number scale (1–32). With no `look` it is
+ * transparent where the image is; a look puts it on a light or dark page and
+ * can draw the pixel grid over it (only from MIN_GRID_SCALE up).
+ */
+export function exportPng(pix: Pix, scale: number, look?: ExportLook): Promise<Uint8Array> {
+  const s = Math.max(1, Math.min(32, Math.round(scale)));
+  const image = imageCanvas(pix, s);
+  const grid = !!look?.grid && s >= MIN_GRID_SCALE;
+  if (!look || (look.backdrop === 'none' && !grid)) return pngOf(image);
+  const out = document.createElement('canvas');
+  out.width = image.width;
+  out.height = image.height;
+  const ctx = out.getContext('2d')!;
+  if (look.backdrop !== 'none') {
+    ctx.fillStyle = PAPER[look.backdrop];
+    ctx.fillRect(0, 0, out.width, out.height);
+  }
+  ctx.drawImage(image, 0, 0);
+  if (grid) {
+    // Lines on the pixel edges, a little thicker as the picture gets bigger.
+    const t = Math.max(1, Math.floor(s / 16));
+    ctx.fillStyle = GRID_INK[look.backdrop];
+    for (let x = 1; x < pix.w; x++) ctx.fillRect(x * s - Math.floor(t / 2), 0, t, out.height);
+    for (let y = 1; y < pix.h; y++) ctx.fillRect(0, y * s - Math.floor(t / 2), out.width, t);
+  }
+  return pngOf(out);
 }
 
 /** A PNG for the library, up to `side` pixels across at a whole-number scale; null for an empty image. */

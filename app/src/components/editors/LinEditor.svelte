@@ -95,6 +95,8 @@
   import { ago } from '../../lib/time';
   import { errorMessage, type DocMeta, type Opened } from '../../lib/types';
   import ContextMenu from '../ui/ContextMenu.svelte';
+  import ExportDialog from '../shell/ExportDialog.svelte';
+  import type { ExportChoice, ExportFormat } from '../../lib/export-look';
   import Dialog from '../ui/Dialog.svelte';
   import type { MenuItem } from '../ui/menu';
   import ShortcutSheet from '../shell/ShortcutSheet.svelte';
@@ -165,8 +167,6 @@
   let connect = $state.raw<{ from: number; at: Pt; to: Pt } | null>(null);
   let sheet = $state(false);
   let canvasMenu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
-  let exportMenu = $state<{ x: number; y: number } | null>(null);
-  let exportButton: HTMLButtonElement | undefined = $state();
 
   const history = new History();
   const dirty = $derived(serializeLin(doc) !== saved);
@@ -441,37 +441,35 @@
     finish();
   }
 
-  type Format = 'png' | 'jpeg' | 'svg' | 'lin';
-  const FORMATS: { format: Format; ext: string; label: string }[] = [
-    { format: 'png', ext: 'png', label: 'PNG image' },
-    { format: 'jpeg', ext: 'jpg', label: 'JPEG image' },
-    { format: 'svg', ext: 'svg', label: 'SVG drawing' },
-    { format: 'lin', ext: 'lin', label: '.lin file' },
+  const FORMATS: ExportFormat[] = [
+    { id: 'png', ext: 'png', label: 'PNG', styled: true, clear: false },
+    { id: 'jpeg', ext: 'jpg', label: 'JPEG', styled: true, clear: false },
+    { id: 'svg', ext: 'svg', label: 'SVG', styled: true, clear: false },
+    { id: 'lin', ext: 'lin', label: '.lin', styled: false },
   ];
 
-  function openExportMenu() {
-    const r = exportButton?.getBoundingClientRect();
-    exportMenu = r ? { x: r.right - 200, y: r.bottom + 6 } : { x: 200, y: 60 };
-  }
+  let exportOpen = $state(false);
 
-  const exportItems: MenuItem[] = FORMATS.map((f) => ({ label: f.label, hint: `.${f.ext}`, run: () => exportAs(f.format) }));
-
-  /** Writes the diagram as it is now (saved or not) in a format, where the user picks. */
-  async function exportAs(format: Format) {
+  /** Writes the diagram as it is now (saved or not) the way the popup chose, where the user picks. */
+  async function exportAs(choice: ExportChoice) {
+    exportOpen = false;
     if (exporting) return;
-    const f = FORMATS.find((x) => x.format === format)!;
-    // An empty page says so before any dialog.
-    if (format !== 'lin' && !bounds(doc)) return notes.say('Nothing to export: the page is empty');
+    const f = FORMATS.find((x) => x.id === choice.format)!;
     exporting = true;
     try {
       const dir = prefs.value?.export.lastDir;
       const file = `${meta.name}.${f.ext}`;
       let path = await api.pickSavePath(dir ? `${dir}/${file}` : file, f.ext);
       if (!path) return;
-      const want = format === 'jpeg' ? /\.jpe?g$/i : new RegExp(`\\.${f.ext}$`, 'i');
+      const want = f.id === 'jpeg' ? /\.jpe?g$/i : new RegExp(`\\.${f.ext}$`, 'i');
       if (!want.test(path)) path += `.${f.ext}`;
-      const text = format === 'svg' ? exportSvg(doc) : format === 'lin' ? serializeLin(doc) : null;
-      const bytes = text !== null ? new TextEncoder().encode(text) : await exportImage(doc, format as 'png' | 'jpeg');
+      const look = { backdrop: choice.backdrop, grid: choice.grid };
+      const bytes =
+        f.id === 'lin'
+          ? new TextEncoder().encode(serializeLin(doc))
+          : f.id === 'svg'
+            ? new TextEncoder().encode(exportSvg(doc, look))
+            : await exportImage(doc, f.id as 'png' | 'jpeg', look);
       await api.writeExport(path, bytes);
       const slash = path.lastIndexOf('/');
       if (slash > 0) prefs.set('export.lastDir', path.slice(0, slash));
@@ -710,7 +708,7 @@
         void save();
         break;
       case 'export':
-        openExportMenu();
+        exportOpen = true;
         break;
       case 'play':
         playing = !playing;
@@ -734,7 +732,7 @@
     return (
       closing ||
       sheet ||
-      exportMenu !== null ||
+      exportOpen ||
       canvasMenu !== null ||
       !!document.querySelector('dialog[open]') ||
       isTextField(target as HTMLInputElement | null)
@@ -766,7 +764,7 @@
         requestClose();
         return true;
       case 'export':
-        openExportMenu();
+        exportOpen = true;
         return true;
       case 'undo':
         return editing({ do: 'undo' });
@@ -1081,7 +1079,7 @@
         ...at,
         items: [
           { label: 'Edit', icon: PencilRuler, hint: 'e', run: () => setEdit(true) },
-          { label: 'Export…', icon: FileOutput, hint: 'x', run: openExportMenu },
+          { label: 'Export…', icon: FileOutput, hint: 'x', run: () => (exportOpen = true) },
         ],
       };
       return;
@@ -1191,7 +1189,7 @@
       <button class="zoom" title="Fit the page (⌘0)" onclick={() => run({ do: 'zoom', by: 'fit' })}>{Math.round(zoom * 100)}%</button>
       <button class="icon-btn" title="Zoom in (⌘=)" onclick={() => run({ do: 'zoom', by: 'in' })}><ZoomIn size={16} /></button>
       <span class="sep"></span>
-      <button class="btn" bind:this={exportButton} title="Export (⌘E)" onclick={openExportMenu}><FileOutput size={15} /> Export</button>
+      <button class="btn" title="Export (⌘E)" onclick={() => (exportOpen = true)}><FileOutput size={15} /> Export</button>
       <button class="btn" class:primary={dirty} disabled={saving || !dirty} title="Save (⌘S)" onclick={() => save()}>
         {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
       </button>
@@ -1284,8 +1282,14 @@
   <ShortcutSheet title="Diagram shortcuts" groups={LIN_SHORTCUTS} onclose={() => (sheet = false)} />
 {/if}
 
-{#if exportMenu}
-  <ContextMenu x={exportMenu.x} y={exportMenu.y} items={exportItems} onclose={() => (exportMenu = null)} />
+{#if exportOpen}
+  <ExportDialog
+    kind="lin"
+    formats={FORMATS}
+    fallback={{ backdrop: 'light' }}
+    onclose={() => (exportOpen = false)}
+    onexport={exportAs}
+  />
 {/if}
 
 {#if closing}

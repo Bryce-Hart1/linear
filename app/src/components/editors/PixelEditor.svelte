@@ -82,7 +82,7 @@
     type Pt,
     type Rect,
   } from '../../lib/lpx/raster';
-  import { exportPng, indexAt, paintLayer, paletteRGBA, thumbnailLpx } from '../../lib/lpx/render';
+  import { MIN_GRID_SCALE, exportPng, indexAt, paintLayer, paletteRGBA, thumbnailLpx } from '../../lib/lpx/render';
   import type { MenuId } from '../../lib/menu-ids';
   import { isTextField, onMenu } from '../../lib/menu-router';
   import { notes } from '../../lib/notes.svelte';
@@ -92,6 +92,8 @@
   import Confirm from '../shell/Confirm.svelte';
   import ShortcutSheet from '../shell/ShortcutSheet.svelte';
   import ContextMenu from '../ui/ContextMenu.svelte';
+  import ExportDialog from '../shell/ExportDialog.svelte';
+  import type { ExportChoice, ExportFormat } from '../../lib/export-look';
   import Dialog from '../ui/Dialog.svelte';
   import type { MenuItem } from '../ui/menu';
   import EditorFrame from './EditorFrame.svelte';
@@ -169,7 +171,6 @@
   let palettes = $state<Palette[]>([]);
   let saving = $state(false);
   let exporting = $state(false);
-  let exportButton: HTMLButtonElement | undefined = $state();
   let imageButton: HTMLButtonElement | undefined = $state();
 
   const dirty = $derived((void rev, forcedDirty || hist.mark !== savedMark));
@@ -670,6 +671,7 @@
       sizing ||
       naming ||
       popup !== null ||
+      exportOpen ||
       !!document.querySelector('dialog[open]') ||
       isTextField(target as HTMLInputElement | null)
     );
@@ -991,32 +993,37 @@
     popup = { x: r ? r.right - 220 : 200, y: r ? r.bottom + 6 : 60, items };
   }
 
+  const SCALES = [1, 2, 4, 8, 16, 32];
+  const FORMATS: ExportFormat[] = [
+    { id: 'png', ext: 'png', label: 'PNG', styled: true },
+    { id: 'lpx', ext: 'lpx', label: '.lpx', styled: false },
+  ];
+
+  let exportOpen = $state(false);
+
   function openExport() {
-    const pref = prefs.value?.lpx.exportScale ?? 8;
-    const scales = [...new Set([1, 4, 8, 16, pref])].sort((a, b) => a - b);
-    popupAt(exportButton, [
-      ...scales.map((s) => ({ label: `PNG at ${s}×`, hint: `${pix.w * s} × ${pix.h * s}`, run: () => exportAs(s) }) as MenuItem),
-      { separator: true },
-      { label: '.lpx file', hint: '.lpx', run: () => exportAs('lpx') },
-    ]);
+    commitFloat();
+    exportOpen = true;
   }
 
-  async function exportAs(what: number | 'lpx') {
+  async function exportAs(choice: ExportChoice) {
+    exportOpen = false;
     if (exporting) return;
     commitFloat();
-    const ext = what === 'lpx' ? 'lpx' : 'png';
+    const lpx = choice.format === 'lpx';
+    const ext = lpx ? 'lpx' : 'png';
     exporting = true;
     try {
       const dir = prefs.value?.export.lastDir;
-      const file = what === 'lpx' ? `${meta.name}.lpx` : `${meta.name}${what === 1 ? '' : `@${what}x`}.png`;
+      const file = lpx ? `${meta.name}.lpx` : `${meta.name}${choice.scale === 1 ? '' : `@${choice.scale}x`}.png`;
       let path = await api.pickSavePath(dir ? `${dir}/${file}` : file, ext);
       if (!path) return;
       if (!new RegExp(`\\.${ext}$`, 'i').test(path)) path += `.${ext}`;
-      const bytes = what === 'lpx' ? new TextEncoder().encode(serializeLpx(pix)) : await exportPng(pix, what);
+      const bytes = lpx ? new TextEncoder().encode(serializeLpx(pix)) : await exportPng(pix, choice.scale, { backdrop: choice.backdrop, grid: choice.grid });
       await api.writeExport(path, bytes);
       const slash = path.lastIndexOf('/');
       if (slash > 0) prefs.set('export.lastDir', path.slice(0, slash));
-      if (typeof what === 'number' && what !== prefs.value?.lpx.exportScale) prefs.set('lpx.exportScale', what);
+      if (!lpx && choice.scale !== prefs.value?.lpx.exportScale) prefs.set('lpx.exportScale', choice.scale);
       say(`exported ${path.slice(slash + 1)} (${Math.max(1, Math.round(bytes.length / 1024))} KB)`);
     } catch (e) {
       say(errorMessage(e));
@@ -1145,7 +1152,7 @@
       <button class="icon-btn" title="Zoom in (+)" onclick={() => run({ do: 'zoom', by: 'in' })}><ZoomIn size={16} /></button>
       <span class="sep"></span>
       <button class="btn" bind:this={imageButton} onclick={openImage}><ImageIcon size={15} /> Image</button>
-      <button class="btn" bind:this={exportButton} title="Export (⌘E)" onclick={openExport}><FileOutput size={15} /> Export</button>
+      <button class="btn" title="Export (⌘E)" onclick={openExport}><FileOutput size={15} /> Export</button>
       <button class="btn" class:primary={dirty} disabled={saving || !dirty} title="Save (⌘S)" onclick={() => save()}>
         {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
       </button>
@@ -1310,6 +1317,20 @@
     </div>
   {/snippet}
 </EditorFrame>
+
+{#if exportOpen}
+  <ExportDialog
+    kind="lpx"
+    formats={FORMATS}
+    fallback={{ backdrop: 'none', scale: prefs.value?.lpx.exportScale ?? 8 }}
+    scales={SCALES}
+    gridFrom={MIN_GRID_SCALE}
+    clear
+    size={{ w: pix.w, h: pix.h }}
+    onclose={() => (exportOpen = false)}
+    onexport={exportAs}
+  />
+{/if}
 
 {#if popup}
   <ContextMenu {...popup} onclose={() => (popup = null)} />

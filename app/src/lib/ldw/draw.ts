@@ -2,6 +2,7 @@
 // or a library thumbnail. All of them go through segments() in geometry.ts,
 // so a stroke looks the same everywhere.
 
+import { GRID_INK, PAPER, dotsAsSvg, dotsOnCanvas, inkOn, type ExportLook } from '../export-look';
 import { boundsOf, pathData, segments, strokeBox, tracePath, type Box, type Pt } from './geometry';
 import type { Drawing, Stroke } from './model';
 
@@ -36,7 +37,14 @@ export function exportBox(d: Drawing, whole: boolean): Box | null {
   return { x: b.x - m, y: b.y - m, w: b.w + 2 * m, h: b.h + 2 * m };
 }
 
-function render(d: Drawing, box: Box, scale: number, background: string | null): HTMLCanvasElement {
+/** Grid marks on an exported page: a dot every 20 page pixels, 1.5 across. */
+const GRID_STEP = 20;
+const GRID_DOT = 1.5;
+
+/** A stroke as it prints on the export's page (grey ink flips to stay visible). */
+const printed = (s: Stroke, look?: ExportLook): Stroke => (look ? { ...s, c: inkOn(s.c, look.backdrop) } : s);
+
+function render(d: Drawing, box: Box, scale: number, background: string | null, look?: ExportLook): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(box.w * scale));
   canvas.height = Math.max(1, Math.round(box.h * scale));
@@ -46,7 +54,8 @@ function render(d: Drawing, box: Box, scale: number, background: string | null):
     ctx.fillStyle = background;
     ctx.fillRect(box.x, box.y, box.w, box.h);
   }
-  for (const s of d.items) drawStroke(ctx, s);
+  if (look?.grid) dotsOnCanvas(ctx, box, GRID_STEP, GRID_DOT, GRID_INK[look.backdrop]);
+  for (const s of d.items) drawStroke(ctx, printed(s, look));
   return canvas;
 }
 
@@ -60,11 +69,13 @@ async function bytesOf(canvas: HTMLCanvasElement, type: string, quality?: number
  * A PNG or JPEG at twice the size: cropped to what's drawn (plus 32 px) or the
  * whole page. A PNG of a transparent page stays transparent; a JPEG can't, so it gets white.
  */
-export async function exportImage(d: Drawing, kind: 'png' | 'jpeg', whole: boolean): Promise<Uint8Array> {
+export async function exportImage(d: Drawing, kind: 'png' | 'jpeg', whole: boolean, look?: ExportLook): Promise<Uint8Array> {
   const box = exportBox(d, whole);
   if (!box) throw new Error('nothing to export: the page is empty');
-  const bg = d.bg === 'none' ? (kind === 'jpeg' ? '#ffffff' : null) : d.bg;
-  return kind === 'png' ? bytesOf(render(d, box, 2, bg), 'image/png') : bytesOf(render(d, box, 2, bg), 'image/jpeg', 0.92);
+  // A JPEG has no transparency, so it never has the "none" page.
+  const l = look && kind === 'jpeg' && look.backdrop === 'none' ? { ...look, backdrop: 'light' as const } : look;
+  const bg = l ? (l.backdrop === 'none' ? null : PAPER[l.backdrop]) : d.bg === 'none' ? (kind === 'jpeg' ? '#ffffff' : null) : d.bg;
+  return kind === 'png' ? bytesOf(render(d, box, 2, bg, l), 'image/png') : bytesOf(render(d, box, 2, bg, l), 'image/jpeg', 0.92);
 }
 
 /** A small picture of the whole page for the library; null when nothing is drawn. */
@@ -79,11 +90,14 @@ const xml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const r2 = (v: number) => String(Math.round(v * 100) / 100);
 
 /** The drawing as SVG: one path per stroke, cropped like the PNG (or the whole page). */
-export function exportSvg(d: Drawing, whole: boolean): string {
+export function exportSvg(d: Drawing, whole: boolean, look?: ExportLook): string {
   const box = exportBox(d, whole);
   if (!box) throw new Error('nothing to export: the page is empty');
-  const bg = d.bg === 'none' ? '' : `<rect x="${r2(box.x)}" y="${r2(box.y)}" width="${r2(box.w)}" height="${r2(box.h)}" fill="${xml(d.bg)}"/>\n`;
+  const page = look ? (look.backdrop === 'none' ? 'none' : PAPER[look.backdrop]) : d.bg;
+  const bg = page === 'none' ? '' : `<rect x="${r2(box.x)}" y="${r2(box.y)}" width="${r2(box.w)}" height="${r2(box.h)}" fill="${xml(page)}"/>\n`;
+  const grid = look?.grid ? dotsAsSvg(box, GRID_STEP, GRID_DOT, GRID_INK[look.backdrop]) : '';
   const paths = d.items
+    .map((s) => printed(s, look))
     .map(
       (s) =>
         `<path d="${pathData(segments(s.pts, s.z))}" fill="none" stroke="${xml(s.c)}" stroke-width="${r2(s.w)}" stroke-linecap="round" stroke-linejoin="round"${s.o === 100 ? '' : ` stroke-opacity="${s.o / 100}"`}/>`,
@@ -91,7 +105,7 @@ export function exportSvg(d: Drawing, whole: boolean): string {
     .join('\n');
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r2(box.x)} ${r2(box.y)} ${r2(box.w)} ${r2(box.h)}" width="${r2(box.w)}" height="${r2(box.h)}">\n` +
-    `${bg}${paths}\n</svg>\n`
+    `${bg}${grid}${paths}\n</svg>\n`
   );
 }
 
